@@ -119,12 +119,18 @@ impl<T> ParsedCommand<T> {
         &self.arg_type
     }
 
-    pub fn get_args_string(&self) -> &Vec<String> {
-        &self.args.args_string
+    pub fn get_args_string(&self) -> Option<&Vec<String>> {
+        if let Some(arg_container) = self.args {
+            return Some(&arg_container.args_string)
+        }
+        None
     }
 
-    pub fn get_args_u32(&self) -> &Vec<u32> {
-        &self.args.args_u32
+    pub fn get_args_u32(&self) -> Option<&Vec<u32>> {
+        if let Some(arg_container) = self.args {
+            return Some(&arg_container.args_u32)
+        }
+        None
     }
 }
 
