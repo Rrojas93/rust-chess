@@ -56,7 +56,7 @@ pub fn tui_main() {
                 },
                 ChessTuiCommands::Reset => {
                     println!("Resetting board.");
-                    game = Board::new();
+                    game.new_game();
                 },
                 ChessTuiCommands::Save => {
                     println!("Saving PGN to file.");
