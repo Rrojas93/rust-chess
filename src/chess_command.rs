@@ -1,12 +1,13 @@
-use std::process::Command;
+use std::{process::Command, fmt::Display};
 
 
+#[derive(Clone, Copy)]
 pub enum ArgType {
     ArgType_String,
     ArgType_u32,
 }
 
-struct ArgContainer {
+pub struct ArgContainer {
     pub args_string: Vec<String>,
     pub args_u32: Vec<u32>,
 }
@@ -20,17 +21,18 @@ impl ArgContainer {
     }
 }
 
-pub struct CommandParser<T> {
+pub struct CommandParser<T: Copy> {
     registered_cmds: Vec<RegisteredCommand<T>>,
+    description: String,
 }
 
-impl<T> CommandParser<T> {
+impl<T: Copy> CommandParser<T> {
     pub fn new() -> CommandParser<T> {
-        CommandParser { registered_cmds: Vec::new() }
+        CommandParser { registered_cmds: Vec::new(), description: String::new() }
     }
 
     pub fn from(cmds: Vec<RegisteredCommand<T>>) -> CommandParser<T> {
-        CommandParser { registered_cmds: cmds }
+        CommandParser { registered_cmds: cmds, description: String::new() }
     }
 
     pub fn register_cmd(&mut self, cmd: RegisteredCommand<T>) {
@@ -39,6 +41,23 @@ impl<T> CommandParser<T> {
 
     pub fn register_cmds(&mut self, cmds: Vec<RegisteredCommand<T>>) {
         self.registered_cmds = cmds
+    }
+
+    pub fn set_description(&mut self, description: String) {
+        self.description = description;
+    }
+
+    pub fn get_help_text(&self) -> String {
+        let mut output = String::new();
+
+        output += self.description.as_str();
+        output += "\n\n";
+
+        for cmd in &self.registered_cmds {
+            output += format!("{}\n\n", cmd).as_str();
+        }
+
+        output
     }
 
     pub fn parse_string(&self, string_input: String) -> Option<ParsedCommand<T>> {
@@ -52,8 +71,8 @@ impl<T> CommandParser<T> {
 
     pub fn parse_vec(&self, vec_input: Vec<String>) -> Option<ParsedCommand<T>> {
         if vec_input.len() > 0 {
-            for rcmd in self.registered_cmds {
-                if rcmd.is_cmd(vec_input[0]) {
+            for rcmd in &self.registered_cmds {
+                if rcmd.is_cmd(&vec_input[0]) {
                     return self.parse_cmd(rcmd, &vec_input[1..]);
                 }
             }
@@ -64,14 +83,14 @@ impl<T> CommandParser<T> {
         None
     }
 
-    pub fn parse_cmd(&self, rcmd: RegisteredCommand<T>, input_args: &[String]) -> Option<ParsedCommand<T>> {
+    fn parse_cmd(&self, rcmd: &RegisteredCommand<T>, input_args: &[String]) -> Option<ParsedCommand<T>> {
         if input_args.len() >= rcmd.num_args as usize {
-            if let Some(argt) = rcmd.arg_type {
+            if let Some(argt) = &rcmd.arg_type {
                 let mut arg_container = ArgContainer::new();
                 match argt {
                     ArgType::ArgType_String => {
                         for i in 0..rcmd.num_args {
-                            arg_container.args_string.push(input_args[i as usize]);
+                            arg_container.args_string.push(String::from(input_args[i as usize].as_str()));
                         }
                     },
                     ArgType::ArgType_u32 => {
@@ -88,6 +107,9 @@ impl<T> CommandParser<T> {
                 }
                 return Some(ParsedCommand::new(rcmd.cmd_id, rcmd.arg_type, Some(arg_container)));
             }
+            else {
+                return Some(ParsedCommand::new(rcmd.cmd_id, None, None));
+            }
         }
         else {
             // TODO: Not enough arguments for the command. Print/return command help or use default arguments.
@@ -96,13 +118,13 @@ impl<T> CommandParser<T> {
     }
 }
 
-pub struct ParsedCommand<T> {
+pub struct ParsedCommand<T: Copy> {
     cmd_id: T,
     arg_type: Option<ArgType>,
     args: Option<ArgContainer>,
 }
 
-impl<T> ParsedCommand<T> {
+impl<T: Copy> ParsedCommand<T> {
     pub fn new(cmd_id: T, arg_type: Option<ArgType>, args: Option<ArgContainer>) -> ParsedCommand<T> {
         ParsedCommand {
             cmd_id,
@@ -120,21 +142,21 @@ impl<T> ParsedCommand<T> {
     }
 
     pub fn get_args_string(&self) -> Option<&Vec<String>> {
-        if let Some(arg_container) = self.args {
+        if let Some(arg_container) = &self.args {
             return Some(&arg_container.args_string)
         }
         None
     }
 
     pub fn get_args_u32(&self) -> Option<&Vec<u32>> {
-        if let Some(arg_container) = self.args {
+        if let Some(arg_container) = &self.args {
             return Some(&arg_container.args_u32)
         }
         None
     }
 }
 
-pub struct RegisteredCommand<T> {
+pub struct RegisteredCommand<T: Copy> {
     cmd_aliases: Vec<String>,
     cmd_id: T,
     num_args: u32,
@@ -143,14 +165,52 @@ pub struct RegisteredCommand<T> {
     default_args: ArgContainer,
 }
 
-impl<T> RegisteredCommand<T> {
+impl<T: Copy> Display for RegisteredCommand<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut output = String::new();
+
+        // Show aliases
+        output += "Command aliases: [";
+        for i in 0..self.cmd_aliases.len() {
+            output.push_str(self.cmd_aliases[i].as_str());
+            if i != self.cmd_aliases.len() - 1 {
+                output += ",";
+            }
+        }
+        output += "]\n";
+
+        // Show number of args
+        if self.num_args > 0 {
+            output += format!("Number of arguments: {}\n", self.num_args).as_str();
+        }
+
+        // Show argument type
+        if let Some(arg_type) = self.arg_type {
+            let at = match arg_type {
+                ArgType::ArgType_String => "String",
+                ArgType::ArgType_u32 => "u32",
+            };
+
+            output += format!("Argument Type: {}\n", at).as_str();
+        }
+
+        // Show help
+        output += self.help_str.as_str();
+        output += "\n";
+
+
+        write!(f, "{}", output)
+    }
+}
+
+impl<T: Copy> RegisteredCommand<T> {
     pub fn new(id: T) -> RegisteredCommandBuilder<T> {
         RegisteredCommandBuilder::new(id)
     }
 
-    pub fn is_cmd(&self, other_str: String) -> bool {
-        for alias in self.cmd_aliases {
-            if alias == other_str {
+    pub fn is_cmd(&self, other_str: &String) -> bool {
+        for alias in &self.cmd_aliases {
+            if alias == other_str.as_str() {
                 return true;
             }
         }
@@ -158,7 +218,7 @@ impl<T> RegisteredCommand<T> {
     }
 }
 
-pub struct RegisteredCommandBuilder<T> {
+pub struct RegisteredCommandBuilder<T: Copy> {
     cmd_aliases: Vec<String>,
     cmd_id: T,
     num_args: u32,
@@ -167,7 +227,7 @@ pub struct RegisteredCommandBuilder<T> {
     default_args: ArgContainer,
 }
 
-impl<T> RegisteredCommandBuilder<T> {
+impl<T: Copy> RegisteredCommandBuilder<T> {
     pub fn new(id: T) -> RegisteredCommandBuilder<T> {
         RegisteredCommandBuilder {
             cmd_aliases: Vec::new(),
@@ -184,27 +244,32 @@ impl<T> RegisteredCommandBuilder<T> {
         self
     }
 
-    pub fn num_args(mut self, n: u32) -> RegisteredCommandBuilder<T> {
+    pub fn add_num_args(mut self, n: u32) -> RegisteredCommandBuilder<T> {
         self.num_args = n;
         self
     }
 
-    pub fn help_str(mut self, help: &str) -> RegisteredCommandBuilder<T> {
+    pub fn add_arg_type(mut self, arg_type: ArgType) -> RegisteredCommandBuilder<T> {
+        self.arg_type = Some(arg_type);
+        self
+    }
+
+    pub fn add_help_str(mut self, help: &str) -> RegisteredCommandBuilder<T> {
         self.help_str = String::from(help);
         self
     }
 
-    pub fn help_string(mut self, help: String) -> RegisteredCommandBuilder<T> {
+    pub fn add_help_string(mut self, help: String) -> RegisteredCommandBuilder<T> {
         self.help_str = help;
         self
     }
 
-    pub fn default_args_string(mut self, def: Vec<String>) -> RegisteredCommandBuilder<T> {
+    pub fn add_default_args_string(mut self, def: Vec<String>) -> RegisteredCommandBuilder<T> {
         self.default_args.args_string = def;
         self
     }
 
-    pub fn default_args_u32(mut self, def: Vec<u32>) -> RegisteredCommandBuilder<T> {
+    pub fn add_default_args_u32(mut self, def: Vec<u32>) -> RegisteredCommandBuilder<T> {
         self.default_args.args_u32 = def;
         self
     }
@@ -218,5 +283,56 @@ impl<T> RegisteredCommandBuilder<T> {
             help_str: self.help_str,
             default_args: ArgContainer::new(),
         })
+    }
+}
+
+
+// === UNIT TESTS ===
+
+#[cfg(test)]
+mod tests {
+    use super::{RegisteredCommand, CommandParser};
+
+    #[derive(Clone, Copy)]
+    enum TestCommandEnum {
+        TestCommandOne,
+        TestCommandTwo,
+        TestCommandThree,
+    }
+
+    #[test]
+    fn test_register_command_builder() {
+        let register_cmd_result = RegisteredCommand::new(TestCommandEnum::TestCommandOne)
+            .add_aliases(&["cmd_one", "c1"])
+            .add_help_str("Some help string for command one.")
+            .build();
+
+        if let Some(cmd) = register_cmd_result {
+            cmd.is_cmd(&String::from("cmd_one"));
+            cmd.is_cmd(&String::from("cmd_two"));
+        }
+    }
+
+    #[test]
+    fn test_command() {
+        let register_cmd_result = RegisteredCommand::new(TestCommandEnum::TestCommandTwo)
+            .add_aliases(&["cmd_two", "c2"])
+            .add_help_str("Registered command of type two.")
+            .build();
+        let parser: CommandParser<TestCommandEnum> = CommandParser::from(vec![register_cmd_result.unwrap()]);
+        let result = parser.parse_string(String::from("cmd_two"));
+        if let Some(pcmd) = result {
+            match pcmd.get_id() {
+                TestCommandEnum::TestCommandOne => {
+
+                }
+                TestCommandEnum::TestCommandTwo => {
+
+                }
+                TestCommandEnum::TestCommandThree => {
+
+                }
+            }
+        }
     }
 }

@@ -40,7 +40,9 @@ incorrect moves and provide feedback.
         * redo [num]
         * reset
         * save [path]
+        * load [path]
         * quit
+        * help
 
 ## Phase 2: Let's make it fun.
 1. Integrate stockfish as a chess engine which the player can play against.
