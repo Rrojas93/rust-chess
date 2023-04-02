@@ -10,7 +10,7 @@ use crate::{
         Board,
         Team
     },
-    chess_command::{CommandParser, RegisteredCommand, ArgType, ParsedCommand},
+    chess_command::{CommandParser, RegisteredCommand, ArgType, ParsedCommand, CommandError},
 };
 
 const TERMINAL_COLOR_RESET: &str        = "\u{001b}[0m";
@@ -43,8 +43,8 @@ pub fn tui_main() {
         print!(">> ");
         std::io::stdout().flush();
         user_input = get_user_input();
-        if let Some(cmd) = parser.parse_string(user_input) {
-            match cmd.get_id() {
+        match parser.parse_string(user_input) {
+            Ok(cmd) => match cmd.get_id() {
                 ChessTuiCommands::Move => {
                     println!("Entered a move.");
                 },
@@ -70,6 +70,14 @@ pub fn tui_main() {
                 },
                 ChessTuiCommands::Help => {
                     std::io::stdout().write(parser.get_help_text().as_bytes()).unwrap();
+                }
+            },
+            Err(e) => {
+                match e {
+                    CommandError::NoCommandRecieved => (),
+                    CommandError::CommandNotFound => println!("Unknown command."),
+                    CommandError::IncorrectNumberOfArguments => println!("Incorrect number of arguments for the command."),
+                    CommandError::InvalidArgumentType => println!("Invalid input arguments for the command."),
                 }
             }
         }
