@@ -65,7 +65,7 @@ impl Display for PgnGame {
             if last_line.len() + self.result.to_string().len() >= 80 {
                 output += "\n";
             }
-            output += self.result.to_string().as_str();
+            output += self.result.get_value().to_string().as_str();
         }
 
         write!(f, "{}", output)
@@ -73,7 +73,86 @@ impl Display for PgnGame {
 }
 
 impl PgnGame {
-    
+    pub fn new() -> PgnGame {
+        PgnGame {
+            event: PgnTagPair::new(String::from("Event"), String::new()),
+            site: PgnTagPair::new(String::from("Site"), String::new()),
+            date: PgnTagPair::new(String::from("Date"), PgnDate::now()),
+            round: PgnTagPair::new(String::from("Round"), PgnRound::Unknown),
+            white: PgnTagPair::new(String::from("White"), String::new()),
+            black: PgnTagPair::new(String::from("Black"), String::new()),
+            result: PgnTagPair::new(String::from("Result"), PgnResult::Unknown),
+            moves: MoveList::new(),
+        }
+    }
+
+    pub fn set_event(&mut self, event: String) {
+        self.event.set_value(event);
+    }
+
+    pub fn get_event(&self) -> &String {
+        self.event.get_value()
+    }
+
+    pub fn set_site(&mut self, site: String) {
+        self.site.set_value(site);
+    }
+
+    pub fn get_site(&self) -> &String {
+        self.site.get_value()
+    }
+
+    pub fn set_date(&mut self, date: PgnDate) {
+        self.date.set_value(date);
+    }
+
+    pub fn get_date(&self) -> &PgnDate {
+        self.date.get_value()
+    }
+
+    pub fn set_round(&mut self, round: PgnRound) {
+        self.round.set_value(round);
+    }
+
+    pub fn get_round(&self) -> &PgnRound {
+        self.round.get_value()
+    }
+
+    pub fn set_white(&mut self, white: String) {
+        self.white.set_value(white);
+    }
+
+    pub fn get_white(&self) -> &String {
+        self.white.get_value()
+    }
+
+    pub fn set_black(&mut self, black: String) {
+        self.black.set_value(black);
+    }
+
+    pub fn get_black(&self) -> &String {
+        self.black.get_value()
+    }
+
+    pub fn set_result(&mut self, result: PgnResult) {
+        self.result.set_value(result);
+    }
+
+    pub fn get_result(&self) -> &PgnResult {
+        self.result.get_value()
+    }
+
+    pub fn push_move(&mut self, new_move: ChessMove) {
+        self.moves.push_move(new_move);
+    }
+
+    pub fn pop_move(&mut self) -> Option<ChessMove> {
+        self.moves.pop_move()
+    }
+
+    pub fn get_turn(&self) -> ChessTurn {
+        self.moves.get_turn()
+    }
 }
 
 struct PgnTagPair<T: Display> {
@@ -84,6 +163,24 @@ struct PgnTagPair<T: Display> {
 impl<T: Display> Display for PgnTagPair<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[{} \"{}\"]", self.tag_name, self.tag_value)
+    }
+}
+
+impl<T: Display> PgnTagPair<T> {
+    pub fn new(tag_name: String, tag_value: T) -> PgnTagPair<T> {
+        PgnTagPair { tag_name, tag_value, }
+    }
+
+    pub fn set_value(&mut self, tag_value: T) {
+        self.tag_value = tag_value;
+    }
+
+    pub fn get_value(&self) -> &T {
+        &self.tag_value
+    }
+
+    pub fn get_name(&self) -> &String {
+        &self.tag_name
     }
 }
 
@@ -234,8 +331,80 @@ impl Display for MoveList {
                 new_line += " ";
             }
         }
+        output += new_line.as_str();
         write!(f, "{}", output)
     }
+}
+
+enum ChessTurn {
+    WhiteToMove,
+    BlackToMove,
+}
+
+impl MoveList {
+    pub fn new() -> MoveList {
+        MoveList {
+            moves: Vec::new(),
+        }
+    }
+
+    pub fn push_move(&mut self, new_move: ChessMove) {
+        if self.moves.is_empty() {
+            self.moves.push(PgnMove::new())
+        }
+
+        if let Some(m) = self.moves.last_mut() {
+            match m.get_state() {
+                PgnMoveState::MoveComplete => {
+                    let mut new_pgn_move = PgnMove::new();
+                    new_pgn_move.add_move(new_move);
+                    self.moves.push(new_pgn_move);
+                }
+                _ => {
+                    m.add_move(new_move);
+                }
+            }
+        }
+    }
+
+    pub fn pop_move(&mut self) -> Option<ChessMove> {
+        let mut ret_move = None;
+
+        while ret_move.is_none() && self.moves.len() > 0 {
+            let index = self.moves.len() - 1;
+            let pgn_move = &mut self.moves[index];
+            ret_move = pgn_move.remove_move();
+            if ret_move.is_none() {
+                self.moves.pop();
+            }
+        }
+
+        return ret_move;
+    }
+
+    pub fn get_turn(&self) -> ChessTurn {
+        if let Some(m) = self.moves.last() {
+            let state = m.get_state();
+            match state {
+                PgnMoveState::MoveComplete => {
+                    return ChessTurn::WhiteToMove;
+                }
+                PgnMoveState::WhiteToMove => {
+                    return ChessTurn::WhiteToMove;
+                }
+                PgnMoveState::BlackToMove => {
+                    return ChessTurn::BlackToMove;
+                }
+            }
+        }
+        return ChessTurn::WhiteToMove;
+    }
+}
+
+enum PgnMoveState {
+    WhiteToMove,
+    BlackToMove,
+    MoveComplete,
 }
 
 struct PgnMove {
@@ -257,6 +426,51 @@ impl Display for PgnMove {
     }
 }
 
+impl PgnMove {
+    pub fn new() -> PgnMove {
+        PgnMove { white_move: None, black_move: None }
+    }
+
+    pub fn get_state(&self) -> PgnMoveState {
+        if self.white_move.is_none() {
+            return PgnMoveState::WhiteToMove;
+        }
+        else if self.black_move.is_none() {
+            return PgnMoveState::BlackToMove;
+        }
+        else {
+            return PgnMoveState::MoveComplete;
+        }
+    }
+
+    pub fn add_move(&mut self, new_move: ChessMove) -> bool {
+        if self.white_move.is_none() {
+            self.white_move = Some(new_move);
+        }
+        else if self.black_move.is_none() {
+            self.black_move = Some(new_move);
+        }
+        else {
+            return false;
+        }
+        return true;
+    }
+
+    pub fn remove_move(&mut self) -> Option<ChessMove> {
+        let mut temp: Option<ChessMove> = None;
+        if let Some(m) = &self.black_move {
+            temp = Some(m.clone());
+            self.black_move = None;
+        }
+        else if let Some(m) = &self.white_move {
+            temp = Some(m.clone());
+            self.white_move = None;
+        }
+        return temp;
+    }
+}
+
+#[derive(Clone)]
 struct ChessMove {
     origin: Option<ChessCoordinate>,
     destination: Option<ChessCoordinate>,
@@ -363,6 +577,7 @@ struct ChessMoveBuilder {
     is_check_mate: bool,
 }
 
+#[derive(Debug)]
 enum ChessMoveBuildError {
     InvalidMove,
     ImpossibleMove,
@@ -488,6 +703,7 @@ impl ChessMoveBuilder {
     }
 }
 
+#[derive(Clone, Copy)]
 enum ChessPiece {
     Pawn,
     Knight,
@@ -512,6 +728,7 @@ impl Display for ChessPiece {
     }
 }
 
+#[derive(Clone)]
 struct ChessCoordinate {
     rank: Option<ChessRank>,
     file: Option<ChessFile>,
@@ -572,6 +789,7 @@ impl ChessCoordinate {
     }
 }
 
+#[derive(Clone, Copy)]
 enum ChessRank {
     R1,
     R2,
@@ -599,6 +817,7 @@ impl Display for ChessRank {
     }
 }
 
+#[derive(Clone, Copy)]
 enum ChessFile {
     A,
     B,
@@ -626,6 +845,7 @@ impl Display for ChessFile {
     }
 }
 
+#[derive(Clone, Copy)]
 enum ChessCastleDirection {
     KingsideCastle,
     QueensideCastle,
@@ -635,8 +855,15 @@ enum ChessCastleDirection {
 
 #[cfg(test)]
 mod tests {
+    use super::{PgnGame, ChessMove, ChessCoordinate, ChessRank};
+
     #[test]
     pub fn test_sample() {
-
+        let mut pgn = PgnGame::new();
+        let m = ChessMove::new()
+            .set_destination(ChessCoordinate::new(ChessRank::R4, super::ChessFile::E))
+            .build().unwrap();
+        pgn.push_move(m);
+        println!("{pgn}")
     }
 }
