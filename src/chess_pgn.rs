@@ -470,7 +470,7 @@ impl PgnMove {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct ChessMove {
     origin: Option<ChessCoordinate>,
     destination: Option<ChessCoordinate>,
@@ -558,11 +558,257 @@ impl ChessMove {
         ChessMoveBuilder::new()
     }
 
-    pub fn from(pgn_move_string: String) -> Result<ChessMove, ChessMoveBuildError> {
-        // Create move struct from an input string
-        let new_move = ChessMove::new();
-        todo!();
+    pub fn from(pgn_move_string: &str) -> Result<ChessMove, ChessMoveBuildError> {
+        if pgn_move_string.len() == 0 {
+            return Err(ChessMoveBuildError::MissingMoveData);
+        }
+        if !pgn_move_string.is_ascii() {
+            return Err(ChessMoveBuildError::InvalidInputFormat);
+        }
+        let mov_str = pgn_move_string.trim();
+
+        let mut new_move = ChessMove::new();
+
+        // A local enum to help keep track of build loop phase while iterating through string.
+        enum MoveBuildPhase {
+            CheckCastle,
+            PieceType,
+            Origin,
+            Capture,
+            Destination,
+            Promotion,
+            Checks,
+            Done,
+        }
+
+        // Example Moves:
+        //  Nf6xd5
+        //  O-O-O
+        let mut phase = MoveBuildPhase::CheckCastle;
+        let mut move_iter = mov_str.chars();
+        let mut current_char = move_iter.next();
+        let mut castle_count = 0;
+        let mut board_file: Option<ChessFile> = None;
+        let mut board_rank: Option<ChessRank> = None;
+        loop {
+            match phase {
+                MoveBuildPhase::CheckCastle => {
+                    let mut castle_finish = false;
+                    if let Some(c) = current_char {
+                        match c {
+                            'O' => {
+                                castle_count += 1
+                            }
+                            '-' => (),
+                            _ => {
+                                // Found a non castle char, resolve this phase.
+                                castle_finish = true;
+                            }
+                        }
+                    }
+                    else {
+                        castle_finish = true;
+                    }
+
+                    if castle_finish {
+                        if castle_count == 3 {
+                            new_move = new_move
+                                .set_castle(ChessCastleDirection::QueensideCastle)
+                                .set_moving_piece(ChessPiece::King);
+                            phase = MoveBuildPhase::Checks;
+                        }
+                        else if castle_count == 2 {
+                            new_move = new_move
+                                .set_castle(ChessCastleDirection::KingsideCastle)
+                                .set_moving_piece(ChessPiece::King);
+                            phase = MoveBuildPhase::Checks;
+                        }
+                        else if castle_count == 0 && current_char.is_some() {
+                            phase = MoveBuildPhase::PieceType;
+                            continue; // let current char continue into next phase.
+                        }
+                        else {
+                            return Err(ChessMoveBuildError::InvalidMove);
+                        }
+                    }
+                },
+                MoveBuildPhase::PieceType => {
+                    if let Some(c) = current_char {
+                        phase = MoveBuildPhase::Origin;
+                        if let Some(p) = ChessPiece::from(c) {
+                            new_move = new_move.set_moving_piece(p);
+                        }
+                        else {
+                            continue; // let current char continue into next phase.
+                        }
+                    }
+                    else {
+                        return Err(ChessMoveBuildError::InvalidMove);
+                    }
+                },
+                MoveBuildPhase::Origin|MoveBuildPhase::Destination => {
+                    let mut complete = false;
+                    if let Some(c) = current_char {
+                        if let Some(f) = ChessFile::from(c) {
+                            board_file = Some(f);
+                        }
+                        else if let Some(r) = ChessRank::from(c) {
+                            board_rank = Some(r);
+                        }
+                        else {
+                            complete = true;
+                        }
+                    }
+                    else {
+                        complete = true;
+                    }
+
+                    if complete {
+                        let mut coord = ChessCoordinate::empty();
+                        if let Some(f) = board_file {
+                            coord.set_file(f);
+                        }
+                        if let Some(r) = board_rank {
+                            coord.set_rank(r);
+                        }
+                        if !coord.is_empty() {
+                            match phase {
+                                MoveBuildPhase::Origin => {
+                                    if current_char.is_some() {
+                                        new_move = new_move.set_origin(coord)
+                                    }
+                                    else {
+                                        // This is the only coordinate in the move string so it must be a destination square.
+                                        new_move = new_move.set_destination(coord);
+                                    }
+                                },
+                                MoveBuildPhase::Destination => new_move = new_move.set_destination(coord),
+                                _ => (),
+                            }
+                        }
+                        else {
+                            return Err(ChessMoveBuildError::InvalidMove);
+                        }
+                        if current_char.is_none() {
+                            // Reached the end of move the string.
+                            break;
+                        }
+                        board_file = None;
+                        board_rank = None;
+                        phase = match phase {
+                            MoveBuildPhase::Origin => MoveBuildPhase::Capture,
+                            MoveBuildPhase::Destination =>MoveBuildPhase::Promotion,
+                            _ => MoveBuildPhase::Done,
+                        };
+                        continue;
+                    }
+                },
+                MoveBuildPhase::Capture => {
+                    if let Some(c) = current_char {
+                        phase = MoveBuildPhase::Destination;
+                        if c == 'x' {
+                            new_move = new_move.set_is_capture(true);
+                        }
+                        else {
+                            continue;
+                        }
+                    }
+                    else {
+                        return Err(ChessMoveBuildError::InvalidMove);
+                    }
+                },
+                MoveBuildPhase::Promotion => {
+                    if let Some(c) = current_char {
+                        phase = MoveBuildPhase::Checks;
+                        if c == '=' {
+                            // is promotion, iterate to the next char and get promotion piece.
+                            current_char = move_iter.next();
+                            if let Some(c) = current_char {
+                                if let Some(p) = ChessPiece::from(c) {
+                                    new_move = new_move.set_promotion(p);
+                                }
+                                else {
+                                    return Err(ChessMoveBuildError::InvalidMove);
+                                }
+                            }
+                            else {
+                                return Err(ChessMoveBuildError::InvalidMove);
+                            }
+                        }
+                    }
+                    else {
+                        break;
+                    }
+                }
+                MoveBuildPhase::Checks => {
+                    if let Some(c) = current_char {
+                        phase = MoveBuildPhase::Done;
+                        if c == '+' {
+                            new_move = new_move.set_is_check(true);
+                        }
+                        else if c == '#' {
+                            new_move = new_move.set_is_check_mate(true);
+                        }
+                        else {
+                            return Err(ChessMoveBuildError::InvalidMove);
+                        }
+                    }
+                    else {
+                        break;
+                    }
+                },
+                MoveBuildPhase::Done => break,
+            }
+            current_char = move_iter.next();
+        }
         new_move.build()
+    }
+
+    pub fn get_origin(&self) -> Option<&ChessCoordinate> {
+        if let Some(o) = &self.origin {
+            return Some(&o);
+        }
+        None
+    }
+
+    pub fn get_destination(&self) -> Option<&ChessCoordinate> {
+        if let Some(d) = &self.destination {
+            return Some(&d);
+        }
+        None
+    }
+
+    pub fn get_moving_piece(&self) -> Option<&ChessPiece> {
+        if let Some(mp) = &self.moving_piece {
+            return Some(&mp);
+        }
+        None
+    }
+
+    pub fn get_castle(&self) -> Option<&ChessCastleDirection> {
+        if let Some(c) = &self.castle {
+            return Some(&c);
+        }
+        None
+    }
+
+    pub fn get_promotion(&self) -> Option<&ChessPiece> {
+        if let Some(p) = &self.promotion {
+            return Some(&p);
+        }
+        None
+    }
+
+    pub fn is_capture(&self) -> bool {
+        self.is_capture
+    }
+
+    pub fn is_check(&self) -> bool {
+        self.is_check
+    }
+
+    pub fn is_check_mate(&self) -> bool {
+        self.is_check_mate
     }
 }
 
@@ -577,12 +823,13 @@ struct ChessMoveBuilder {
     is_check_mate: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum ChessMoveBuildError {
     InvalidMove,
     ImpossibleMove,
     MissingDestination,
     MissingMoveData,
+    InvalidInputFormat,
 }
 
 impl ChessMoveBuilder {
@@ -703,7 +950,7 @@ impl ChessMoveBuilder {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum ChessPiece {
     Pawn,
     Knight,
@@ -728,14 +975,40 @@ impl Display for ChessPiece {
     }
 }
 
-#[derive(Clone)]
+impl ChessPiece {
+    pub fn from(c: char) -> Option<Self> {
+        match c {
+            'N' => Some(ChessPiece::Knight),
+            'B' => Some(ChessPiece::Bishop),
+            'R' => Some(ChessPiece::Rook),
+            'Q' => Some(ChessPiece::Queen),
+            'K' => Some(ChessPiece::King),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 struct ChessCoordinate {
     rank: Option<ChessRank>,
     file: Option<ChessFile>,
 }
 
+impl Display for ChessCoordinate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut output = String::new();
+        if let Some(f) = self.file {
+            output += f.to_string().as_str();
+        }
+        if let Some(r) = self.rank {
+            output += r.to_string().as_str();
+        }
+        write!(f, "{}", output)
+    }
+}
+
 impl ChessCoordinate {
-    pub fn new(chess_rank: ChessRank, chess_file: ChessFile) -> ChessCoordinate {
+    pub fn new(chess_file: ChessFile, chess_rank: ChessRank) -> ChessCoordinate {
         ChessCoordinate {
             rank: Some(chess_rank),
             file: Some(chess_file),
@@ -789,7 +1062,7 @@ impl ChessCoordinate {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum ChessRank {
     R1,
     R2,
@@ -817,7 +1090,23 @@ impl Display for ChessRank {
     }
 }
 
-#[derive(Clone, Copy)]
+impl ChessRank {
+    pub fn from(c: char) -> Option<ChessRank> {
+        match c {
+            '1' => Some(ChessRank::R1),
+            '2' => Some(ChessRank::R2),
+            '3' => Some(ChessRank::R3),
+            '4' => Some(ChessRank::R4),
+            '5' => Some(ChessRank::R5),
+            '6' => Some(ChessRank::R6),
+            '7' => Some(ChessRank::R7),
+            '8' => Some(ChessRank::R8),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum ChessFile {
     A,
     B,
@@ -845,7 +1134,23 @@ impl Display for ChessFile {
     }
 }
 
-#[derive(Clone, Copy)]
+impl ChessFile {
+    pub fn from(c: char) -> Option<Self>{
+        match c {
+            'a' => Some(ChessFile::A),
+            'b' => Some(ChessFile::B),
+            'c' => Some(ChessFile::C),
+            'd' => Some(ChessFile::D),
+            'e' => Some(ChessFile::E),
+            'f' => Some(ChessFile::F),
+            'g' => Some(ChessFile::G),
+            'h' => Some(ChessFile::H),
+            _ => None
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum ChessCastleDirection {
     KingsideCastle,
     QueensideCastle,
@@ -854,16 +1159,177 @@ enum ChessCastleDirection {
 // === UNIT TESTS ===
 
 #[cfg(test)]
-mod tests {
-    use super::{PgnGame, ChessMove, ChessCoordinate, ChessRank};
+mod test_move_parsing {
+
+    use crate::chess_pgn::{ChessMoveBuildError, ChessFile, ChessPiece};
+
+    use super::{ChessMove, ChessCoordinate, ChessRank, ChessCastleDirection};
 
     #[test]
-    pub fn test_sample() {
-        let mut pgn = PgnGame::new();
-        let m = ChessMove::new()
-            .set_destination(ChessCoordinate::new(ChessRank::R4, super::ChessFile::E))
-            .build().unwrap();
-        pgn.push_move(m);
-        println!("{pgn}")
+    pub fn test_move_parsing_empty_fails() {
+        let m = ChessMove::from("");
+        assert!(m.is_err());
+        if let Err(e) = m {
+            assert_eq!(e, ChessMoveBuildError::MissingMoveData);
+        }
+    }
+
+    #[test]
+    pub fn test_move_parsing_nonsense_fails() {
+        let m = ChessMove::from("asdf;lkj");
+        assert!(m.is_err());
+        if let Err(e) = m {
+            assert_eq!(e, ChessMoveBuildError::InvalidMove);
+        }
+    }
+
+    #[test]
+    pub fn test_move_parsing_non_ascii_string_fails() {
+        let m = ChessMove::from("🤔");
+        assert!(m.is_err());
+        if let Err(e) = m {
+            assert_eq!(e, ChessMoveBuildError::InvalidInputFormat);
+        }
+    }
+
+    #[test]
+    pub fn test_move_parsing_kingside_castle_passes() {
+        let m = ChessMove::from("O-O");
+        assert!(m.is_ok());
+        if let Ok(mov) = m {
+            assert!(mov.get_origin().is_none());
+            assert!(mov.get_destination().is_none());
+            assert!(mov.get_moving_piece().is_some());
+            assert!(mov.get_castle().is_some());
+            assert!(mov.get_promotion().is_none());
+            assert_eq!(mov.is_capture(), false);
+            assert_eq!(mov.is_check(), false);
+            assert_eq!(mov.is_check_mate(), false);
+
+            if let Some(c) = mov.get_castle() {
+                assert_eq!(*c, super::ChessCastleDirection::KingsideCastle);
+            }
+            if let Some(p) = mov.get_moving_piece() {
+                assert_eq!(*p, ChessPiece::King);
+            }
+        }
+    }
+
+    #[test]
+    pub fn test_move_parsing_queenside_castle_passes() {
+        let m = ChessMove::from("O-O-O");
+        assert!(m.is_ok());
+        if let Ok(mov) = m {
+            assert!(mov.get_origin().is_none());
+            assert!(mov.get_destination().is_none());
+            assert!(mov.get_moving_piece().is_some());
+            assert!(mov.get_castle().is_some());
+            assert!(mov.get_promotion().is_none());
+            assert_eq!(mov.is_capture(), false);
+            assert_eq!(mov.is_check(), false);
+            assert_eq!(mov.is_check_mate(), false);
+
+            if let Some(c) = mov.get_castle() {
+                assert_eq!(*c, super::ChessCastleDirection::QueensideCastle);
+            }
+            if let Some(p) = mov.get_moving_piece() {
+                assert_eq!(*p, ChessPiece::King);
+            }
+        }
+    }
+
+    #[test]
+    pub fn test_move_parsing_invalid_castles_fails() {
+        let m = ChessMove::from("O");
+        assert!(m.is_err());
+        if let Err(e) = m {
+            assert_eq!(e, super::ChessMoveBuildError::InvalidMove);
+        }
+        let m = ChessMove::from("O-O-O-O");
+        assert!(m.is_err());
+        if let Err(e) = m {
+            assert_eq!(e, super::ChessMoveBuildError::InvalidMove);
+        }
+    }
+
+    fn test_helper_simple_move_passes(move_string: &str, piece: ChessPiece, dest: ChessCoordinate) {
+        let m = ChessMove::from(move_string);
+        assert!(m.is_ok());
+        if let Ok(mov) = m {
+            assert!(mov.get_origin().is_none());
+            assert!(mov.get_destination().is_some());
+            assert!(mov.get_moving_piece().is_some());
+            assert!(mov.get_castle().is_none());
+            assert!(mov.get_promotion().is_none());
+            assert_eq!(mov.is_capture(), false);
+            assert_eq!(mov.is_check(), false);
+            assert_eq!(mov.is_check_mate(), false);
+
+            if let Some(p) = mov.get_moving_piece() {
+                assert_eq!(*p, piece);
+            }
+            if let Some(d) = mov.get_destination() {
+                assert_eq!(*d, dest);
+            }
+        }
+    }
+
+    #[test]
+    pub fn test_move_parsing_simple_move_passes() {
+        test_helper_simple_move_passes(
+            "e4",
+            ChessPiece::Pawn,
+            ChessCoordinate{ rank: Some(ChessRank::R4), file: Some(ChessFile::E) }
+        );
+        test_helper_simple_move_passes(
+            "Nc3",
+            ChessPiece::Knight,
+            ChessCoordinate { rank: Some(ChessRank::R3), file: Some(ChessFile::C) }
+        );
+        test_helper_simple_move_passes(
+            "Bf4",
+            ChessPiece::Bishop,
+            ChessCoordinate { rank: Some(ChessRank::R4), file: Some(ChessFile::F) }
+        );
+        test_helper_simple_move_passes(
+            "Rb1",
+            ChessPiece::Rook,
+            ChessCoordinate { rank: Some(ChessRank::R1), file: Some(ChessFile::B) }
+        );
+        test_helper_simple_move_passes(
+            "Qd3",
+            ChessPiece::Queen,
+            ChessCoordinate { rank: Some(ChessRank::R3), file: Some(ChessFile::D) }
+        );
+        test_helper_simple_move_passes(
+            "Kf1",
+            ChessPiece::King,
+            ChessCoordinate { rank: Some(ChessRank::R1), file: Some(ChessFile::F) }
+        );
+    }
+
+    #[test]
+    pub fn test_move_parsing_pawn_capture_passes() {
+        let m = ChessMove::from("exd5");
+        assert!(m.is_ok());
+        if let Ok(mov) = m {
+            assert!(mov.get_origin().is_some());
+            assert!(mov.get_destination().is_some());
+            assert!(mov.get_moving_piece().is_some());
+            assert!(mov.get_castle().is_none());
+            assert!(mov.get_promotion().is_none());
+            assert_eq!(mov.is_capture(), true);
+            assert_eq!(mov.is_check(), false);
+            assert_eq!(mov.is_check_mate(), false);
+
+            if let Some(origin) = mov.get_origin() {
+                let mut coord = ChessCoordinate::empty();
+                coord.set_file(ChessFile::E);
+                assert_eq!(*origin, coord);
+            }
+            if let Some(dest) = mov.get_destination() {
+                assert_eq!(*dest, ChessCoordinate::new(ChessFile::D, ChessRank::R5));
+            }
+        }
     }
 }
