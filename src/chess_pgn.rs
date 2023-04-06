@@ -990,8 +990,8 @@ impl ChessPiece {
 
 #[derive(Clone, Debug, PartialEq)]
 struct ChessCoordinate {
-    rank: Option<ChessRank>,
     file: Option<ChessFile>,
+    rank: Option<ChessRank>,
 }
 
 impl Display for ChessCoordinate {
@@ -1165,171 +1165,260 @@ mod test_move_parsing {
 
     use super::{ChessMove, ChessCoordinate, ChessRank, ChessCastleDirection};
 
+    #[derive(Debug)]
+    enum ExpectedParameter {
+        ExpectOrigin(Option<ChessCoordinate>),
+        ExpectDestination(Option<ChessCoordinate>),
+        ExpectMovingPiece(Option<ChessPiece>),
+        ExpectCastle(Option<ChessCastleDirection>),
+        ExpectPromotion(Option<ChessPiece>),
+        ExpectCapture(bool),
+        ExpectCheck(bool),
+        ExpectCheckMate(bool),
+        ExpectError(ChessMoveBuildError),
+    }
+
+    fn test_move_parser_helper(test_str: &str, params: Vec<ExpectedParameter>) {
+        let m_result = ChessMove::from(test_str);
+
+        let mut tested_origin = false;
+        let mut tested_destination = false;
+        let mut tested_moving_piece = false;
+        let mut tested_castle = false;
+        let mut tested_promotion = false;
+        let mut tested_capture = false;
+        let mut tested_check = false;
+        let mut tested_check_mate = false;
+
+        match m_result {
+            Ok(mov) => {
+                for param in params {
+                    match param {
+                        ExpectedParameter::ExpectOrigin(expected_value) => {
+                            tested_origin = true;
+                            if let Some(expected) = expected_value {
+                                assert!(mov.get_origin().is_some());
+                                if let Some(result_value) = mov.get_origin() {
+                                    assert_eq!(*result_value, expected);
+                                }
+                            }
+                            else {
+                                assert!(mov.get_origin().is_none());
+                            }
+                        },
+                        ExpectedParameter::ExpectDestination(expected_value) => {
+                            tested_destination = true;
+                            if let Some(expected) = expected_value {
+                                assert!(mov.get_destination().is_some());
+                                if let Some(result_value) = mov.get_destination() {
+                                    assert_eq!(*result_value, expected);
+                                }
+                            }
+                            else {
+                                assert!(mov.get_destination().is_none());
+                            }
+                        },
+                        ExpectedParameter::ExpectMovingPiece(expected_value) => {
+                            tested_moving_piece = true;
+                            if let Some(expected) = expected_value {
+                                assert!(mov.get_moving_piece().is_some());
+                                if let Some(result_value) = mov.get_moving_piece() {
+                                    assert_eq!(*result_value, expected);
+                                }
+                            }
+                            else {
+                                assert!(mov.get_moving_piece().is_none());
+                            }
+                        },
+                        ExpectedParameter::ExpectCastle(expected_value) => {
+                            tested_castle = true;
+                            if let Some(expected) = expected_value {
+                                assert!(mov.get_castle().is_some());
+                                if let Some(result_value) = mov.get_castle() {
+                                    assert_eq!(*result_value, expected);
+                                }
+                            }
+                            else {
+                                assert!(mov.get_castle().is_none());
+                            }
+                        },
+                        ExpectedParameter::ExpectPromotion(expected_value) => {
+                            tested_promotion = true;
+                            if let Some(expected) = expected_value {
+                                assert!(mov.get_promotion().is_some());
+                                if let Some(result_value) = mov.get_promotion() {
+                                    assert_eq!(*result_value, expected);
+                                }
+                            }
+                            else {
+                                assert!(mov.get_promotion().is_none());
+                            }
+                        },
+                        ExpectedParameter::ExpectCapture(expected_value) => {
+                            tested_capture = true;
+                            assert_eq!(mov.is_capture(), expected_value);
+                        },
+                        ExpectedParameter::ExpectCheck(expected_value) => {
+                            tested_check = true;
+                            assert_eq!(mov.is_check(), expected_value);
+                        },
+                        ExpectedParameter::ExpectCheckMate(expected_value) => {
+                            tested_check_mate = true;
+                            assert_eq!(mov.is_check_mate(), expected_value);
+                        },
+                        ExpectedParameter::ExpectError(e) => {
+                            panic!("Testing for error {:?} in string \"{:?}\" but error was not encountered.", e, test_str);
+                        },
+                    }
+                }
+
+                if !tested_origin {
+                    assert!(mov.get_origin().is_none());
+                }
+                if !tested_destination {
+                    assert!(mov.get_destination().is_none());
+                }
+                if !tested_moving_piece {
+                    assert!(mov.get_moving_piece().is_none());
+                }
+                if !tested_castle {
+                    assert!(mov.get_castle().is_none());
+                }
+                if !tested_promotion {
+                    assert!(mov.get_promotion().is_none())
+                };
+                if !tested_capture {
+                    assert_eq!(mov.is_capture(), false);
+                }
+                if !tested_check {
+                    assert_eq!(mov.is_check(), false);
+                }
+                if !tested_check_mate {
+                    assert_eq!(mov.is_check_mate(), false);
+                }
+            }
+            Err(resulting_error) => {
+                for param in params {
+                    match param {
+                        ExpectedParameter::ExpectError(expected_error) => {
+                            assert_eq!(resulting_error, expected_error);
+                        }
+                        _ => {
+                            panic!("Testing for successful move parse parameter {:?} in string \"{:?}\" but an error was encountered: {:?}", param, test_str, resulting_error);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     #[test]
     pub fn test_move_parsing_empty_fails() {
-        let m = ChessMove::from("");
-        assert!(m.is_err());
-        if let Err(e) = m {
-            assert_eq!(e, ChessMoveBuildError::MissingMoveData);
-        }
+        test_move_parser_helper("", vec![
+            ExpectedParameter::ExpectError(ChessMoveBuildError::MissingMoveData),
+        ]);
     }
 
     #[test]
     pub fn test_move_parsing_nonsense_fails() {
-        let m = ChessMove::from("asdf;lkj");
-        assert!(m.is_err());
-        if let Err(e) = m {
-            assert_eq!(e, ChessMoveBuildError::InvalidMove);
-        }
+        test_move_parser_helper("asdf;lkj", vec![
+            ExpectedParameter::ExpectError(ChessMoveBuildError::InvalidMove),
+        ]);
     }
 
     #[test]
     pub fn test_move_parsing_non_ascii_string_fails() {
-        let m = ChessMove::from("🤔");
-        assert!(m.is_err());
-        if let Err(e) = m {
-            assert_eq!(e, ChessMoveBuildError::InvalidInputFormat);
-        }
+        test_move_parser_helper("🤔", vec![
+            ExpectedParameter::ExpectError(ChessMoveBuildError::InvalidInputFormat),
+        ]);
     }
 
     #[test]
     pub fn test_move_parsing_kingside_castle_passes() {
-        let m = ChessMove::from("O-O");
-        assert!(m.is_ok());
-        if let Ok(mov) = m {
-            assert!(mov.get_origin().is_none());
-            assert!(mov.get_destination().is_none());
-            assert!(mov.get_moving_piece().is_some());
-            assert!(mov.get_castle().is_some());
-            assert!(mov.get_promotion().is_none());
-            assert_eq!(mov.is_capture(), false);
-            assert_eq!(mov.is_check(), false);
-            assert_eq!(mov.is_check_mate(), false);
-
-            if let Some(c) = mov.get_castle() {
-                assert_eq!(*c, super::ChessCastleDirection::KingsideCastle);
-            }
-            if let Some(p) = mov.get_moving_piece() {
-                assert_eq!(*p, ChessPiece::King);
-            }
-        }
+        test_move_parser_helper("O-O", vec![
+            ExpectedParameter::ExpectCastle(Some(ChessCastleDirection::KingsideCastle)),
+            ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::King)),
+        ]);
     }
 
     #[test]
     pub fn test_move_parsing_queenside_castle_passes() {
-        let m = ChessMove::from("O-O-O");
-        assert!(m.is_ok());
-        if let Ok(mov) = m {
-            assert!(mov.get_origin().is_none());
-            assert!(mov.get_destination().is_none());
-            assert!(mov.get_moving_piece().is_some());
-            assert!(mov.get_castle().is_some());
-            assert!(mov.get_promotion().is_none());
-            assert_eq!(mov.is_capture(), false);
-            assert_eq!(mov.is_check(), false);
-            assert_eq!(mov.is_check_mate(), false);
-
-            if let Some(c) = mov.get_castle() {
-                assert_eq!(*c, super::ChessCastleDirection::QueensideCastle);
-            }
-            if let Some(p) = mov.get_moving_piece() {
-                assert_eq!(*p, ChessPiece::King);
-            }
-        }
+        test_move_parser_helper("O-O-O", vec![
+            ExpectedParameter::ExpectCastle(Some(ChessCastleDirection::QueensideCastle)),
+            ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::King)),
+        ]);
     }
 
     #[test]
     pub fn test_move_parsing_invalid_castles_fails() {
-        let m = ChessMove::from("O");
-        assert!(m.is_err());
-        if let Err(e) = m {
-            assert_eq!(e, super::ChessMoveBuildError::InvalidMove);
-        }
-        let m = ChessMove::from("O-O-O-O");
-        assert!(m.is_err());
-        if let Err(e) = m {
-            assert_eq!(e, super::ChessMoveBuildError::InvalidMove);
-        }
-    }
 
-    fn test_helper_simple_move_passes(move_string: &str, piece: ChessPiece, dest: ChessCoordinate) {
-        let m = ChessMove::from(move_string);
-        assert!(m.is_ok());
-        if let Ok(mov) = m {
-            assert!(mov.get_origin().is_none());
-            assert!(mov.get_destination().is_some());
-            assert!(mov.get_moving_piece().is_some());
-            assert!(mov.get_castle().is_none());
-            assert!(mov.get_promotion().is_none());
-            assert_eq!(mov.is_capture(), false);
-            assert_eq!(mov.is_check(), false);
-            assert_eq!(mov.is_check_mate(), false);
+        test_move_parser_helper("O", vec![
+            ExpectedParameter::ExpectError(ChessMoveBuildError::InvalidMove),
+        ]);
 
-            if let Some(p) = mov.get_moving_piece() {
-                assert_eq!(*p, piece);
-            }
-            if let Some(d) = mov.get_destination() {
-                assert_eq!(*d, dest);
-            }
-        }
+        test_move_parser_helper("O-O-O-O", vec![
+            ExpectedParameter::ExpectError(ChessMoveBuildError::InvalidMove),
+        ]);
+
+        test_move_parser_helper("O-", vec![
+            ExpectedParameter::ExpectError(ChessMoveBuildError::InvalidMove),
+        ]);
     }
 
     #[test]
     pub fn test_move_parsing_simple_move_passes() {
-        test_helper_simple_move_passes(
-            "e4",
-            ChessPiece::Pawn,
-            ChessCoordinate{ rank: Some(ChessRank::R4), file: Some(ChessFile::E) }
-        );
-        test_helper_simple_move_passes(
-            "Nc3",
-            ChessPiece::Knight,
-            ChessCoordinate { rank: Some(ChessRank::R3), file: Some(ChessFile::C) }
-        );
-        test_helper_simple_move_passes(
-            "Bf4",
-            ChessPiece::Bishop,
-            ChessCoordinate { rank: Some(ChessRank::R4), file: Some(ChessFile::F) }
-        );
-        test_helper_simple_move_passes(
-            "Rb1",
-            ChessPiece::Rook,
-            ChessCoordinate { rank: Some(ChessRank::R1), file: Some(ChessFile::B) }
-        );
-        test_helper_simple_move_passes(
-            "Qd3",
-            ChessPiece::Queen,
-            ChessCoordinate { rank: Some(ChessRank::R3), file: Some(ChessFile::D) }
-        );
-        test_helper_simple_move_passes(
-            "Kf1",
-            ChessPiece::King,
-            ChessCoordinate { rank: Some(ChessRank::R1), file: Some(ChessFile::F) }
-        );
+        test_move_parser_helper("e4", vec![
+            ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Pawn)),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { file: Some(ChessFile::E), rank: Some(ChessRank::R4) })),
+        ]);
+
+        test_move_parser_helper("Nc3", vec![
+            ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Knight)),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { rank: Some(ChessRank::R3), file: Some(ChessFile::C) })),
+        ]);
+
+        test_move_parser_helper("Bf4", vec![
+            ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Bishop)),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { rank: Some(ChessRank::R4), file: Some(ChessFile::F) })),
+        ]);
+
+        test_move_parser_helper("Rb1", vec![
+            ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Rook)),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { rank: Some(ChessRank::R1), file: Some(ChessFile::B) })),
+        ]);
+
+        test_move_parser_helper("Qd3", vec![
+            ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Queen)),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { rank: Some(ChessRank::R3), file: Some(ChessFile::D) })),
+        ]);
+        test_move_parser_helper("Kf1", vec![
+            ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::King)),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { rank: Some(ChessRank::R1), file: Some(ChessFile::F) })),
+        ]);
     }
 
     #[test]
-    pub fn test_move_parsing_pawn_capture_passes() {
-        let m = ChessMove::from("exd5");
-        assert!(m.is_ok());
-        if let Ok(mov) = m {
-            assert!(mov.get_origin().is_some());
-            assert!(mov.get_destination().is_some());
-            assert!(mov.get_moving_piece().is_some());
-            assert!(mov.get_castle().is_none());
-            assert!(mov.get_promotion().is_none());
-            assert_eq!(mov.is_capture(), true);
-            assert_eq!(mov.is_check(), false);
-            assert_eq!(mov.is_check_mate(), false);
+    pub fn test_move_parsing_simple_move_fails() {
+        test_move_parser_helper("Pe4", vec![
+            ExpectedParameter::ExpectError(ChessMoveBuildError::InvalidMove),
+        ]);
 
-            if let Some(origin) = mov.get_origin() {
-                let mut coord = ChessCoordinate::empty();
-                coord.set_file(ChessFile::E);
-                assert_eq!(*origin, coord);
-            }
-            if let Some(dest) = mov.get_destination() {
-                assert_eq!(*dest, ChessCoordinate::new(ChessFile::D, ChessRank::R5));
-            }
-        }
+        test_move_parser_helper("Bk4", vec![
+            ExpectedParameter::ExpectError(ChessMoveBuildError::InvalidMove),
+        ]);
+
+        test_move_parser_helper("BF0", vec![
+            ExpectedParameter::ExpectError(ChessMoveBuildError::InvalidMove),
+        ]);
+    }
+
+    #[test]
+    pub fn test_move_parsing_simple_capture_passes() {
+        test_move_parser_helper("exd5", vec![
+            ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Pawn)),
+            ExpectedParameter::ExpectOrigin(Some(ChessCoordinate { file: Some(ChessFile::E), rank: None })),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { file: Some(ChessFile::D), rank: Some(ChessRank::R5) })),
+            ExpectedParameter::ExpectCapture(true),
+        ]);
     }
 }
