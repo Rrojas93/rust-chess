@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 mod chess_core;
 mod chess_command;
 mod chess_ui;

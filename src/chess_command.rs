@@ -1,10 +1,10 @@
-use std::{process::Command, fmt::Display};
+use std::{fmt::Display};
 
 
 #[derive(Clone, Copy)]
 pub enum ArgType {
-    ArgType_String,
-    ArgType_u32,
+    ArgTypeString,
+    ArgTypeU32,
 }
 
 #[derive(Clone)]
@@ -96,16 +96,16 @@ impl<T: Copy> CommandParser<T> {
             if let Some(argt) = &rcmd.arg_type {
                 let mut arg_container = ArgContainer::new();
                 match argt {
-                    ArgType::ArgType_String => {
+                    ArgType::ArgTypeString => {
                         for i in 0..rcmd.num_args {
                             arg_container.args_string.push(String::from(input_args[i as usize].as_str()));
                         }
                     },
-                    ArgType::ArgType_u32 => {
+                    ArgType::ArgTypeU32 => {
                         for i in 0..rcmd.num_args {
                             match input_args[i as usize].parse::<u32>() {
                                 Ok(v) => arg_container.args_u32.push(v),
-                                Err(e) => {
+                                Err(_) => {
                                     return Err(CommandError::InvalidArgumentType);
                                 }
                             }
@@ -205,8 +205,8 @@ impl<T: Copy> Display for RegisteredCommand<T> {
         // Show argument type
         if let Some(arg_type) = self.arg_type {
             let at = match arg_type {
-                ArgType::ArgType_String => "String",
-                ArgType::ArgType_u32 => "u32",
+                ArgType::ArgTypeString => "String",
+                ArgType::ArgTypeU32 => "u32",
             };
 
             output += format!("Argument Type: {}\n", at).as_str();
@@ -317,7 +317,6 @@ impl<T: Copy> RegisteredCommandBuilder<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::{RegisteredCommand, CommandParser};
 
     #[derive(Clone, Copy)]
     enum TestCommandEnum {

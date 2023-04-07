@@ -3,14 +3,14 @@ use std::{
         Display, 
         Formatter
     },
-    io::{Write}, process::Command,
+    io::{Write},
 };
 use crate::{
     chess_core::{
         Board,
         Team
     },
-    chess_command::{CommandParser, RegisteredCommand, ArgType, ParsedCommand, CommandError},
+    chess_command::{CommandParser, RegisteredCommand, ArgType, CommandError},
 };
 
 const TERMINAL_COLOR_RESET: &str        = "\u{001b}[0m";
@@ -41,7 +41,7 @@ pub fn tui_main() {
     loop {
         println!("{game}");
         print!(">> ");
-        std::io::stdout().flush();
+        std::io::stdout().flush().unwrap();
         user_input = get_user_input();
         match parser.parse_string(user_input) {
             Ok(cmd) => match cmd.get_id() {
@@ -109,20 +109,20 @@ fn register_commands() -> CommandParser<ChessTuiCommands> {
                 .add_aliases(&["move", "m"])
                 .add_help_str("Perform a move using PGN chess notation.")
                 .add_num_args(1)
-                .add_arg_type(ArgType::ArgType_String)
+                .add_arg_type(ArgType::ArgTypeString)
                 .build().unwrap(),
             RegisteredCommand::new(ChessTuiCommands::Undo)
                 .add_aliases(&["undo", "u"])
                 .add_help_str("Undo the last move.")
                 .add_num_args(1)
-                .add_arg_type(ArgType::ArgType_u32)
+                .add_arg_type(ArgType::ArgTypeU32)
                 .add_default_args_u32(vec![1])
                 .build().unwrap(),
             RegisteredCommand::new(ChessTuiCommands::Redo)
                 .add_aliases(&["redo", "r"])
                 .add_help_str("Redo the last move.")
                 .add_num_args(1)
-                .add_arg_type(ArgType::ArgType_u32)
+                .add_arg_type(ArgType::ArgTypeU32)
                 .add_default_args_u32(vec![1])
                 .build().unwrap(),
             RegisteredCommand::new(ChessTuiCommands::Reset)
@@ -133,13 +133,13 @@ fn register_commands() -> CommandParser<ChessTuiCommands> {
                 .add_aliases(&["save", "s"])
                 .add_help_str("Save the game in PGN format.")
                 .add_num_args(1)
-                .add_arg_type(ArgType::ArgType_String)
+                .add_arg_type(ArgType::ArgTypeString)
                 .build().unwrap(),
             RegisteredCommand::new(ChessTuiCommands::Load)
                 .add_aliases(&["load", "l"])
                 .add_help_str("Load a game from PGN format file.")
                 .add_num_args(1)
-                .add_arg_type(ArgType::ArgType_String)
+                .add_arg_type(ArgType::ArgTypeString)
                 .build().unwrap(),
             RegisteredCommand::new(ChessTuiCommands::Quit)
                 .add_aliases(&["quit", "q"])
