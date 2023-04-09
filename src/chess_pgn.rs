@@ -581,9 +581,6 @@ impl ChessMove {
             Done,
         }
 
-        // Example Moves:
-        //  Nf6xd5
-        //  O-O-O
         let mut phase = MoveBuildPhase::CheckCastle;
         let mut move_iter = mov_str.chars();
         let mut current_char = move_iter.next();
@@ -1550,5 +1547,34 @@ mod test_move_parsing {
             ExpectedParameter::ExpectDestination(Some(ChessCoordinate { file: Some(ChessFile::D), rank: Some(ChessRank::R6) })),
             ExpectedParameter::ExpectCheckMate(true),
         ]);
+    }
+}
+
+#[cfg(test)]
+mod test_move_printing {
+    use super::ChessMove;
+
+    #[test]
+    pub fn test_castle_kingside() {
+        let castle = ChessMove::new()
+            .set_castle(super::ChessCastleDirection::KingsideCastle)
+            .build();
+        assert!(castle.is_ok());
+        assert_eq!(castle.unwrap().to_string(), "O-O");
+    }
+
+    #[test]
+    pub fn test_castle_queenside() {
+        let castle = ChessMove::new()
+            .set_castle(super::ChessCastleDirection::QueensideCastle)
+            .build();
+        assert!(castle.is_ok());
+        assert_eq!(castle.unwrap().to_string(), "O-O-O");
+    }
+
+    #[test]
+    pub fn test_simple_moves() {
+        let mov = ChessMove::new();
+        todo!();
     }
 }
