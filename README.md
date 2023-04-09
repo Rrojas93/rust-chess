@@ -31,7 +31,7 @@ incorrect moves and provide feedback.
     * The board should be shown at all times.
     * The PGN string should be shown at all times as a way to see move history.
 
-6 Terminal Commands:
+6. Terminal Commands:
     * Since the game's UI will be terminal based, user needs to be able to enter
     commands to control the game and move pieces.
     * List of commands:
