@@ -1,16 +1,19 @@
 use std::{
     fmt::{
-        Display, 
+        Display,
         Formatter
     },
     io::{Write},
 };
+use clap::Parser;
+
 use crate::{
     chess_core::{
         Board,
         Team
     },
-    chess_command::{CommandParser, RegisteredCommand, ArgType, CommandError},
+    chess_cmd::{ChessTuiCmd, ChessCommands},
+    chess_pgn::{PgnMove, ChessMove},
 };
 
 const TERMINAL_COLOR_RESET: &str        = "\u{001b}[0m";
@@ -33,8 +36,6 @@ const TERMINAL_BG_COLOR_CYAN: &str      = "\u{001b}[46m";
 const TERMINAL_BG_COLOR_WHITE: &str     = "\u{001b}[47m";
 
 pub fn tui_main() {
-    let mut parser = register_commands();
-    parser.set_description(String::from("Classic chess game in the terminal!"));
     let mut game: Board = Board::new();
     let mut user_input;
 
@@ -43,43 +44,53 @@ pub fn tui_main() {
         print!(">> ");
         std::io::stdout().flush().unwrap();
         user_input = get_user_input();
-        match parser.parse_string(&user_input) {
-            Ok(cmd) => match cmd.get_id() {
-                ChessTuiCommands::Move => {
-                    println!("Entered a move.");
-                },
-                ChessTuiCommands::Undo => {
-                    println!("Undoing move.");
-                },
-                ChessTuiCommands::Redo => {
-                    println!("Redoing move.");
-                },
-                ChessTuiCommands::Reset => {
-                    println!("Resetting board.");
-                    game.new_game();
-                },
-                ChessTuiCommands::Save => {
-                    println!("Saving PGN to file.");
-                },
-                ChessTuiCommands::Load => {
-                    println!("Loading game from PGN file.");
-                },
-                ChessTuiCommands::Quit => {
-                    println!("Quiting game.");
-                    break;
-                },
-                ChessTuiCommands::Help => {
-                    std::io::stdout().write(parser.get_help_text().as_bytes()).unwrap();
+        user_input.insert_str(0, ">> ");
+        let parse_result = ChessTuiCmd::try_parse_from(user_input.split_whitespace());
+        match parse_result {
+            Ok(input_cmd) => {
+                match input_cmd.command {
+                    ChessCommands::Move { pgn_move } => {
+                        let parsed_move_result = ChessMove::from(&pgn_move);
+                        match parsed_move_result {
+                            Ok(parsed_move) => {
+                                println!("Entered move: {}", parsed_move);
+                            }
+                            Err(e) => {
+                                println!("Invalid move: {pgn_move}");
+                            }
+                        }
+                    }
+                    ChessCommands::Undo { undo_count } => {
+                        let num = match undo_count {
+                            Some(n) => n,
+                            None => 1,
+                        };
+                        println!("Undoing {} move(s)", num);
+                    },
+                    ChessCommands::Redo { redo_count } => {
+                        let num = match redo_count {
+                            Some(n) => n,
+                            None => 1,
+                        };
+                        println!("Redoing {} move(s)", num);
+                    },
+                    ChessCommands::Reset => {
+                        println!("Resetting board.");
+                        game.new_game();
+                    },
+                    ChessCommands::Save { file_path } => {
+                        println!("Saving game to file: {}", file_path);
+                    },
+                    ChessCommands::Load { file_path } => {
+                        println!("Loading game from file: {}", file_path);
+                    },
+                    ChessCommands::Quit => {
+                        println!("Quitting game.");
+                        break;
+                    },
                 }
             },
-            Err(e) => {
-                match e {
-                    CommandError::NoCommandRecieved => (),
-                    CommandError::CommandNotFound => println!("Unknown command."),
-                    CommandError::IncorrectNumberOfArguments => println!("Incorrect number of arguments for the command."),
-                    CommandError::InvalidArgumentType => println!("Invalid input arguments for the command."),
-                }
-            }
+            Err(e) => println!("{e}"),
         }
     }
 }
@@ -102,57 +113,6 @@ enum ChessTuiCommands {
     Help,
 }
 
-fn register_commands() -> CommandParser<ChessTuiCommands> {
-    CommandParser::from(
-        vec![
-            RegisteredCommand::new(ChessTuiCommands::Move)
-                .add_aliases(&["move", "m"])
-                .add_help_str("Perform a move using PGN chess notation.")
-                .add_num_args(1)
-                .add_arg_type(ArgType::ArgTypeString)
-                .build().unwrap(),
-            RegisteredCommand::new(ChessTuiCommands::Undo)
-                .add_aliases(&["undo", "u"])
-                .add_help_str("Undo the last move.")
-                .add_num_args(1)
-                .add_arg_type(ArgType::ArgTypeU32)
-                .add_default_args_u32(vec![1])
-                .build().unwrap(),
-            RegisteredCommand::new(ChessTuiCommands::Redo)
-                .add_aliases(&["redo", "r"])
-                .add_help_str("Redo the last move.")
-                .add_num_args(1)
-                .add_arg_type(ArgType::ArgTypeU32)
-                .add_default_args_u32(vec![1])
-                .build().unwrap(),
-            RegisteredCommand::new(ChessTuiCommands::Reset)
-                .add_aliases(&["reset", "rs"])
-                .add_help_str("Reset the board.")
-                .build().unwrap(),
-            RegisteredCommand::new(ChessTuiCommands::Save)
-                .add_aliases(&["save", "s"])
-                .add_help_str("Save the game in PGN format.")
-                .add_num_args(1)
-                .add_arg_type(ArgType::ArgTypeString)
-                .build().unwrap(),
-            RegisteredCommand::new(ChessTuiCommands::Load)
-                .add_aliases(&["load", "l"])
-                .add_help_str("Load a game from PGN format file.")
-                .add_num_args(1)
-                .add_arg_type(ArgType::ArgTypeString)
-                .build().unwrap(),
-            RegisteredCommand::new(ChessTuiCommands::Quit)
-                .add_aliases(&["quit", "q"])
-                .add_help_str("Quit the game. Warning: Unsaved game progress will be lost.")
-                .build().unwrap(),
-            RegisteredCommand::new(ChessTuiCommands::Help)
-                .add_aliases(&["help", "h"])
-                .add_help_str("Prints help text with available commands.")
-                .build().unwrap(),
-        ]
-    )
-}
-
 fn terminal_fg_color_256(c: u8) -> String {
     format!("\u{001b}[38;5;{c}m")
 }
@@ -170,7 +130,7 @@ impl Display for Board {
             output.push('\n');
 
             // display the row number
-            output.push_str(format!("{} ", r).as_str());
+            output.push_str(format!("{} ", r + 1).as_str());
 
             // Set colorization for the next characters.
             let light_bg_color = terminal_bg_color_256(180);

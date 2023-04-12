@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 time = { version = "0.3", features = ["macros", "std", "local-offset"] }
+clap = { version = "4.2.1", features = ["derive"] }
