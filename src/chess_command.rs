@@ -68,7 +68,7 @@ impl<T: Copy> CommandParser<T> {
         output
     }
 
-    pub fn parse_string(&self, string_input: String) -> Result<ParsedCommand<T>, CommandError> {
+    pub fn parse_string(&self, string_input: &String) -> Result<ParsedCommand<T>, CommandError> {
         self.parse_vec(
             string_input
                 .trim()

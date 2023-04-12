@@ -43,7 +43,7 @@ pub fn tui_main() {
         print!(">> ");
         std::io::stdout().flush().unwrap();
         user_input = get_user_input();
-        match parser.parse_string(user_input) {
+        match parser.parse_string(&user_input) {
             Ok(cmd) => match cmd.get_id() {
                 ChessTuiCommands::Move => {
                     println!("Entered a move.");
