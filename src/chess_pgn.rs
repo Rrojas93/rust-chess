@@ -25,6 +25,7 @@ f3 Bc8 34. Kf2 Bf5 35. Ra7 g6 36. Ra6+ Kc5 37. Ke1 Nf4 38. g3 Nxh3 39. Kd2 Kb5
 */
 
 use std::{fmt::Display, num::ParseIntError};
+use crate::chess_common::*;
 use time::OffsetDateTime;
 
 pub struct PgnGame {
@@ -296,7 +297,7 @@ impl PgnRound {
     }
 }
 
-pub struct MoveList {
+struct MoveList {
     moves: Vec<PgnMove>
 }
 
@@ -334,11 +335,6 @@ impl Display for MoveList {
         output += new_line.as_str();
         write!(f, "{}", output)
     }
-}
-
-pub enum ChessTurn {
-    WhiteToMove,
-    BlackToMove,
 }
 
 impl MoveList {
@@ -407,7 +403,7 @@ pub enum PgnMoveState {
     MoveComplete,
 }
 
-pub struct PgnMove {
+struct PgnMove {
     white_move: Option<ChessMove>,
     black_move: Option<ChessMove>,
 }
@@ -475,7 +471,7 @@ pub struct ChessMove {
     origin: Option<ChessCoordinate>,
     destination: Option<ChessCoordinate>,
     moving_piece: Option<ChessPiece>,
-    castle: Option<ChessCastleDirection>,
+    castle: Option<ChessCastle>,
     promotion: Option<ChessPiece>,
     is_capture: bool,
     is_check: bool,
@@ -488,8 +484,8 @@ impl Display for ChessMove {
 
         if let Some(castle) = &self.castle {
             output += match castle {
-                ChessCastleDirection::KingsideCastle => "O-O",
-                ChessCastleDirection::QueensideCastle => "O-O-O",
+                ChessCastle::KingsideCastle => "O-O",
+                ChessCastle::QueensideCastle => "O-O-O",
             }
         }
         else {
@@ -611,13 +607,13 @@ impl ChessMove {
                     if castle_finish {
                         if castle_count == 3 {
                             new_move = new_move
-                                .set_castle(ChessCastleDirection::QueensideCastle)
+                                .set_castle(ChessCastle::QueensideCastle)
                                 .set_moving_piece(ChessPiece::King);
                             phase = MoveBuildPhase::Checks;
                         }
                         else if castle_count == 2 {
                             new_move = new_move
-                                .set_castle(ChessCastleDirection::KingsideCastle)
+                                .set_castle(ChessCastle::KingsideCastle)
                                 .set_moving_piece(ChessPiece::King);
                             phase = MoveBuildPhase::Checks;
                         }
@@ -807,7 +803,7 @@ impl ChessMove {
         None
     }
 
-    pub fn get_castle(&self) -> Option<&ChessCastleDirection> {
+    pub fn get_castle(&self) -> Option<&ChessCastle> {
         if let Some(c) = &self.castle {
             return Some(&c);
         }
@@ -838,7 +834,7 @@ pub struct ChessMoveBuilder {
     origin: Option<ChessCoordinate>,
     destination: Option<ChessCoordinate>,
     moving_piece: Option<ChessPiece>,
-    castle: Option<ChessCastleDirection>,
+    castle: Option<ChessCastle>,
     promotion: Option<ChessPiece>,
     is_capture: bool,
     is_check: bool,
@@ -888,7 +884,7 @@ impl ChessMoveBuilder {
         self
     }
 
-    pub fn set_castle(mut self, direction: ChessCastleDirection) -> ChessMoveBuilder {
+    pub fn set_castle(mut self, direction: ChessCastle) -> ChessMoveBuilder {
         self.castle = Some(direction);
         self
     }
@@ -972,227 +968,18 @@ impl ChessMoveBuilder {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ChessPiece {
-    Pawn,
-    Knight,
-    Bishop,
-    Rook,
-    Queen,
-    King
-}
-
-impl Display for ChessPiece {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let p = match self {
-            ChessPiece::Pawn => 'P', // Should never be used but adding for completeness.
-            ChessPiece::Knight => 'N',
-            ChessPiece::Bishop => 'B',
-            ChessPiece::Rook => 'R',
-            ChessPiece::Queen => 'Q',
-            ChessPiece::King => 'K',
-        };
-
-        write!(f, "{}", p)
-    }
-}
-
-impl ChessPiece {
-    pub fn from(c: char) -> Option<Self> {
-        match c {
-            'N' => Some(ChessPiece::Knight),
-            'B' => Some(ChessPiece::Bishop),
-            'R' => Some(ChessPiece::Rook),
-            'Q' => Some(ChessPiece::Queen),
-            'K' => Some(ChessPiece::King),
-            _ => None,
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct ChessCoordinate {
-    file: Option<ChessFile>,
-    rank: Option<ChessRank>,
-}
-
-impl Display for ChessCoordinate {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut output = String::new();
-        if let Some(f) = self.file {
-            output += f.to_string().as_str();
-        }
-        if let Some(r) = self.rank {
-            output += r.to_string().as_str();
-        }
-        write!(f, "{}", output)
-    }
-}
-
-impl ChessCoordinate {
-    pub fn new(chess_file: ChessFile, chess_rank: ChessRank) -> ChessCoordinate {
-        ChessCoordinate {
-            rank: Some(chess_rank),
-            file: Some(chess_file),
-        }
-    }
-
-    pub fn from_rank(chess_rank: ChessRank) -> ChessCoordinate {
-        ChessCoordinate {
-            rank: Some(chess_rank),
-            file: None,
-        }
-    }
-
-    pub fn from_file(chess_file: ChessFile) -> ChessCoordinate {
-        ChessCoordinate {
-            rank: None,
-            file: Some(chess_file),
-        }
-    }
-
-    pub fn empty() -> ChessCoordinate {
-        ChessCoordinate { rank: None, file: None }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.rank.is_none() && self.file.is_none()
-    }
-
-    pub fn is_partial(&self) -> bool {
-        self.rank.is_some() || self.file.is_some()
-    }
-
-    pub fn is_complete(&self) -> bool {
-        self.rank.is_some() && self.file.is_some()
-    }
-
-    pub fn get_rank(&self) -> &Option<ChessRank> {
-        &self.rank
-    }
-
-    pub fn get_file(&self) -> &Option<ChessFile> {
-        &self.file
-    }
-
-    pub fn set_rank(&mut self, chess_rank: ChessRank) {
-        self.rank = Some(chess_rank);
-    }
-
-    pub fn set_file(&mut self, chess_file: ChessFile) {
-        self.file = Some(chess_file);
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ChessRank {
-    R1,
-    R2,
-    R3,
-    R4,
-    R5,
-    R6,
-    R7,
-    R8,
-}
-
-impl Display for ChessRank {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let r: char = match self {
-            ChessRank::R1 => '1',
-            ChessRank::R2 => '2',
-            ChessRank::R3 => '3',
-            ChessRank::R4 => '4',
-            ChessRank::R5 => '5',
-            ChessRank::R6 => '6',
-            ChessRank::R7 => '7',
-            ChessRank::R8 => '8',
-        };
-        write!(f, "{r}")
-    }
-}
-
-impl ChessRank {
-    pub fn from(c: char) -> Option<ChessRank> {
-        match c {
-            '1' => Some(ChessRank::R1),
-            '2' => Some(ChessRank::R2),
-            '3' => Some(ChessRank::R3),
-            '4' => Some(ChessRank::R4),
-            '5' => Some(ChessRank::R5),
-            '6' => Some(ChessRank::R6),
-            '7' => Some(ChessRank::R7),
-            '8' => Some(ChessRank::R8),
-            _ => None,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ChessFile {
-    A,
-    B,
-    C,
-    D,
-    E,
-    F,
-    G,
-    H,
-}
-
-impl Display for ChessFile {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let fl: char = match self {
-            ChessFile::A => 'a',
-            ChessFile::B => 'b',
-            ChessFile::C => 'c',
-            ChessFile::D => 'd',
-            ChessFile::E => 'e',
-            ChessFile::F => 'f',
-            ChessFile::G => 'g',
-            ChessFile::H => 'h',
-        };
-        write!(f, "{fl}")
-    }
-}
-
-impl ChessFile {
-    pub fn from(c: char) -> Option<Self>{
-        match c {
-            'a' => Some(ChessFile::A),
-            'b' => Some(ChessFile::B),
-            'c' => Some(ChessFile::C),
-            'd' => Some(ChessFile::D),
-            'e' => Some(ChessFile::E),
-            'f' => Some(ChessFile::F),
-            'g' => Some(ChessFile::G),
-            'h' => Some(ChessFile::H),
-            _ => None
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ChessCastleDirection {
-    KingsideCastle,
-    QueensideCastle,
-}
-
 // === UNIT TESTS ===
 
 #[cfg(test)]
 mod test_move_parsing {
-
-    use crate::chess_pgn::{ChessMoveBuildError, ChessFile, ChessPiece};
-
-    use super::{ChessMove, ChessCoordinate, ChessRank, ChessCastleDirection};
+    use super::*;
 
     #[derive(Debug)]
     enum ExpectedParameter {
         ExpectOrigin(Option<ChessCoordinate>),
         ExpectDestination(Option<ChessCoordinate>),
         ExpectMovingPiece(Option<ChessPiece>),
-        ExpectCastle(Option<ChessCastleDirection>),
+        ExpectCastle(Option<ChessCastle>),
         ExpectPromotion(Option<ChessPiece>),
         ExpectCapture(bool),
         ExpectCheck(bool),
@@ -1358,7 +1145,7 @@ mod test_move_parsing {
     #[test]
     pub fn kingside_castle_passes() {
         test_move_parser_helper("O-O", vec![
-            ExpectedParameter::ExpectCastle(Some(ChessCastleDirection::KingsideCastle)),
+            ExpectedParameter::ExpectCastle(Some(ChessCastle::KingsideCastle)),
             ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::King)),
         ]);
     }
@@ -1366,7 +1153,7 @@ mod test_move_parsing {
     #[test]
     pub fn queenside_castle_passes() {
         test_move_parser_helper("O-O-O", vec![
-            ExpectedParameter::ExpectCastle(Some(ChessCastleDirection::QueensideCastle)),
+            ExpectedParameter::ExpectCastle(Some(ChessCastle::QueensideCastle)),
             ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::King)),
         ]);
     }
@@ -1391,31 +1178,31 @@ mod test_move_parsing {
     pub fn simple_move_passes() {
         test_move_parser_helper("e4", vec![
             ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Pawn)),
-            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { file: Some(ChessFile::E), rank: Some(ChessRank::R4) })),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate::new_opt(Some(ChessFile::E), Some(ChessRank::R4) ))),
         ]);
 
         test_move_parser_helper("Nc3", vec![
             ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Knight)),
-            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { rank: Some(ChessRank::R3), file: Some(ChessFile::C) })),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate::new_opt(Some(ChessFile::C), Some(ChessRank::R3)))),
         ]);
 
         test_move_parser_helper("Bf4", vec![
             ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Bishop)),
-            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { rank: Some(ChessRank::R4), file: Some(ChessFile::F) })),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate::new_opt(Some(ChessFile::F), Some(ChessRank::R4)))),
         ]);
 
         test_move_parser_helper("Rb1", vec![
             ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Rook)),
-            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { rank: Some(ChessRank::R1), file: Some(ChessFile::B) })),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate::new_opt(Some(ChessFile::B), Some(ChessRank::R1)))),
         ]);
 
         test_move_parser_helper("Qd3", vec![
             ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Queen)),
-            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { rank: Some(ChessRank::R3), file: Some(ChessFile::D) })),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate::new_opt(Some(ChessFile::D), Some(ChessRank::R3)))),
         ]);
         test_move_parser_helper("Kf1", vec![
             ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::King)),
-            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { rank: Some(ChessRank::R1), file: Some(ChessFile::F) })),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate::new_opt(Some(ChessFile::F), Some(ChessRank::R1)))),
         ]);
     }
 
@@ -1423,20 +1210,20 @@ mod test_move_parsing {
     pub fn move_disambiguity_passes() {
         test_move_parser_helper("Nec3", vec![
             ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Knight)),
-            ExpectedParameter::ExpectOrigin(Some(ChessCoordinate{ file: Some(ChessFile::E), rank: None})),
-            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { file: Some(ChessFile::C), rank: Some(ChessRank::R3) })),
+            ExpectedParameter::ExpectOrigin(Some(ChessCoordinate::new_opt(Some(ChessFile::E), None))),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate::new_opt(Some(ChessFile::C), Some(ChessRank::R3)))),
         ]);
 
         test_move_parser_helper("N5c3", vec![
             ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Knight)),
-            ExpectedParameter::ExpectOrigin(Some(ChessCoordinate{ file: None, rank: Some(ChessRank::R5)})),
-            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { file: Some(ChessFile::C), rank: Some(ChessRank::R3) })),
+            ExpectedParameter::ExpectOrigin(Some(ChessCoordinate::new_opt(None, Some(ChessRank::R5)))),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate::new_opt(Some(ChessFile::C), Some(ChessRank::R3)))),
         ]);
 
         test_move_parser_helper("Nb5c3", vec![
             ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Knight)),
-            ExpectedParameter::ExpectOrigin(Some(ChessCoordinate{ file: Some(ChessFile::B), rank: Some(ChessRank::R5)})),
-            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { file: Some(ChessFile::C), rank: Some(ChessRank::R3) })),
+            ExpectedParameter::ExpectOrigin(Some(ChessCoordinate::new_opt(Some(ChessFile::B), Some(ChessRank::R5)))),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate::new_opt(Some(ChessFile::C), Some(ChessRank::R3)))),
         ]);
     }
 
@@ -1459,14 +1246,14 @@ mod test_move_parsing {
     pub fn simple_capture_passes() {
         test_move_parser_helper("exd5", vec![
             ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Pawn)),
-            ExpectedParameter::ExpectOrigin(Some(ChessCoordinate { file: Some(ChessFile::E), rank: None })),
-            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { file: Some(ChessFile::D), rank: Some(ChessRank::R5) })),
+            ExpectedParameter::ExpectOrigin(Some(ChessCoordinate::new_opt(Some(ChessFile::E), None))),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate::new_opt(Some(ChessFile::D), Some(ChessRank::R5)))),
             ExpectedParameter::ExpectCapture(true),
         ]);
 
         test_move_parser_helper("Nxd5", vec![
             ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Knight)),
-            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { file: Some(ChessFile::D), rank: Some(ChessRank::R5) })),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate::new_opt(Some(ChessFile::D), Some(ChessRank::R5)))),
             ExpectedParameter::ExpectCapture(true),
         ]);
     }
@@ -1476,7 +1263,7 @@ mod test_move_parsing {
         test_move_parser_helper("e8=Q", vec![
             ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Pawn)),
             ExpectedParameter::ExpectPromotion(Some(ChessPiece::Queen)),
-            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { file: Some(ChessFile::E), rank: Some(ChessRank::R8) })),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate::new_opt(Some(ChessFile::E), Some(ChessRank::R8)))),
         ]);
     }
 
@@ -1485,8 +1272,8 @@ mod test_move_parsing {
         test_move_parser_helper("exd8=Q", vec![
             ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Pawn)),
             ExpectedParameter::ExpectPromotion(Some(ChessPiece::Queen)),
-            ExpectedParameter::ExpectOrigin(Some(ChessCoordinate{ file: Some(ChessFile::E), rank: None})),
-            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { file: Some(ChessFile::D), rank: Some(ChessRank::R8) })),
+            ExpectedParameter::ExpectOrigin(Some(ChessCoordinate::new_opt(Some(ChessFile::E), None))),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate::new_opt(Some(ChessFile::D), Some(ChessRank::R8)))),
             ExpectedParameter::ExpectCapture(true),
         ]);
     }
@@ -1495,7 +1282,7 @@ mod test_move_parsing {
     pub fn simple_check_passes() {
         test_move_parser_helper("e7+", vec![
             ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Pawn)),
-            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { file: Some(ChessFile::E), rank: Some(ChessRank::R7) })),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate::new_opt(Some(ChessFile::E), Some(ChessRank::R7)))),
             ExpectedParameter::ExpectCheck(true),
         ]);
     }
@@ -1506,7 +1293,7 @@ mod test_move_parsing {
         test_move_parser_helper("e8=Q+", vec![
             ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Pawn)),
             ExpectedParameter::ExpectPromotion(Some(ChessPiece::Queen)),
-            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { file: Some(ChessFile::E), rank: Some(ChessRank::R8) })),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate::new_opt(Some(ChessFile::E), Some(ChessRank::R8)))),
             ExpectedParameter::ExpectCheck(true),
         ]);
     }
@@ -1515,7 +1302,7 @@ mod test_move_parsing {
     pub fn simple_check_mate_passes() {
         test_move_parser_helper("e7#", vec![
             ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Pawn)),
-            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { file: Some(ChessFile::E), rank: Some(ChessRank::R7) })),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate::new_opt(Some(ChessFile::E), Some(ChessRank::R7)))),
             ExpectedParameter::ExpectCheckMate(true),
         ]);
     }
@@ -1525,7 +1312,7 @@ mod test_move_parsing {
         test_move_parser_helper("e8=Q#", vec![
             ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Pawn)),
             ExpectedParameter::ExpectPromotion(Some(ChessPiece::Queen)),
-            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { file: Some(ChessFile::E), rank: Some(ChessRank::R8) })),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate::new_opt(Some(ChessFile::E), Some(ChessRank::R8)))),
             ExpectedParameter::ExpectCheckMate(true),
         ]);
     }
@@ -1534,18 +1321,18 @@ mod test_move_parsing {
     pub fn complex_moves_passes() {
         test_move_parser_helper("exd8=Q#", vec![
             ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Pawn)),
-            ExpectedParameter::ExpectOrigin(Some(ChessCoordinate { file: Some(ChessFile::E), rank: None })),
+            ExpectedParameter::ExpectOrigin(Some(ChessCoordinate::new_opt(Some(ChessFile::E), None))),
             ExpectedParameter::ExpectCapture(true),
-            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { file: Some(ChessFile::D), rank: Some(ChessRank::R8) })),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate::new_opt(Some(ChessFile::D), Some(ChessRank::R8)))),
             ExpectedParameter::ExpectPromotion(Some(ChessPiece::Queen)),
             ExpectedParameter::ExpectCheckMate(true),
         ]);
 
         test_move_parser_helper("Ne4xd6#", vec![
             ExpectedParameter::ExpectMovingPiece(Some(ChessPiece::Knight)),
-            ExpectedParameter::ExpectOrigin(Some(ChessCoordinate { file: Some(ChessFile::E), rank: Some(ChessRank::R4) })),
+            ExpectedParameter::ExpectOrigin(Some(ChessCoordinate::new_opt(Some(ChessFile::E), Some(ChessRank::R4)))),
             ExpectedParameter::ExpectCapture(true),
-            ExpectedParameter::ExpectDestination(Some(ChessCoordinate { file: Some(ChessFile::D), rank: Some(ChessRank::R6) })),
+            ExpectedParameter::ExpectDestination(Some(ChessCoordinate::new_opt(Some(ChessFile::D), Some(ChessRank::R6)))),
             ExpectedParameter::ExpectCheckMate(true),
         ]);
     }
@@ -1553,12 +1340,12 @@ mod test_move_parsing {
 
 #[cfg(test)]
 mod test_move_printing {
-    use super::{ChessMove, ChessFile};
+    use super::*;
 
     #[test]
     pub fn test_castle_kingside() {
         let castle = ChessMove::new()
-            .set_castle(super::ChessCastleDirection::KingsideCastle)
+            .set_castle(ChessCastle::KingsideCastle)
             .build();
         assert!(castle.is_ok());
         assert_eq!(castle.unwrap().to_string(), "O-O");
@@ -1567,7 +1354,7 @@ mod test_move_printing {
     #[test]
     pub fn test_castle_queenside() {
         let castle = ChessMove::new()
-            .set_castle(super::ChessCastleDirection::QueensideCastle)
+            .set_castle(ChessCastle::QueensideCastle)
             .build();
         assert!(castle.is_ok());
         assert_eq!(castle.unwrap().to_string(), "O-O-O");
@@ -1576,8 +1363,8 @@ mod test_move_printing {
     #[test]
     pub fn test_pawn_move() {
         let mov = ChessMove::new()
-            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::E), rank: Some(super::ChessRank::R4) })
-            .set_moving_piece(super::ChessPiece::Pawn)
+            .set_destination(ChessCoordinate::new_opt(Some(ChessFile::E), Some(ChessRank::R4)))
+            .set_moving_piece(ChessPiece::Pawn)
             .build();
         assert_eq!(mov.unwrap().to_string(), "e4");
     }
@@ -1585,8 +1372,8 @@ mod test_move_printing {
     #[test]
     pub fn test_pawn_capture() {
         let mov = ChessMove::new()
-            .set_origin(super::ChessCoordinate { file: Some(ChessFile::E), rank: None })
-            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::D), rank: Some(super::ChessRank::R5) })
+            .set_origin(ChessCoordinate::new_opt(Some(ChessFile::E), None ))
+            .set_destination(ChessCoordinate::new_opt(Some(ChessFile::D), Some(ChessRank::R5)))
             .set_is_capture(true)
             .build();
         assert_eq!(mov.unwrap().to_string(), "exd5");
@@ -1595,8 +1382,8 @@ mod test_move_printing {
     #[test]
     pub fn test_piece_move() {
         let mov = ChessMove::new()
-            .set_moving_piece(super::ChessPiece::Knight)
-            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::C), rank: Some(super::ChessRank::R3) })
+            .set_moving_piece(ChessPiece::Knight)
+            .set_destination(ChessCoordinate::new_opt(Some(ChessFile::C), Some(ChessRank::R3)))
             .build();
         assert_eq!(mov.unwrap().to_string(), "Nc3");
     }
@@ -1604,8 +1391,8 @@ mod test_move_printing {
     #[test]
     pub fn test_piece_capture() {
         let mov = ChessMove::new()
-            .set_moving_piece(super::ChessPiece::Knight)
-            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::C), rank: Some(super::ChessRank::R3) })
+            .set_moving_piece(ChessPiece::Knight)
+            .set_destination(ChessCoordinate::new_opt(Some(ChessFile::C), Some(ChessRank::R3)))
             .set_is_capture(true)
             .build();
         assert_eq!(mov.unwrap().to_string(), "Nxc3");
@@ -1614,23 +1401,23 @@ mod test_move_printing {
     #[test]
     pub fn test_move_disambiguity() {
         let mov = ChessMove::new()
-            .set_moving_piece(super::ChessPiece::Knight)
-            .set_origin(super::ChessCoordinate { file: Some(super::ChessFile::B), rank: None })
-            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::C), rank: Some(super::ChessRank::R3) })
+            .set_moving_piece(ChessPiece::Knight)
+            .set_origin(ChessCoordinate::new_opt(Some(ChessFile::B), None ))
+            .set_destination(ChessCoordinate::new_opt(Some(ChessFile::C), Some(ChessRank::R3)))
             .build();
         assert_eq!(mov.unwrap().to_string(), "Nbc3");
 
         let mov = ChessMove::new()
-            .set_moving_piece(super::ChessPiece::Knight)
-            .set_origin(super::ChessCoordinate { file: None, rank: Some(super::ChessRank::R1) })
-            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::C), rank: Some(super::ChessRank::R3) })
+            .set_moving_piece(ChessPiece::Knight)
+            .set_origin(ChessCoordinate::new_opt(None, Some(ChessRank::R1)))
+            .set_destination(ChessCoordinate::new_opt(Some(ChessFile::C), Some(ChessRank::R3)))
             .build();
         assert_eq!(mov.unwrap().to_string(), "N1c3");
 
         let mov = ChessMove::new()
-            .set_moving_piece(super::ChessPiece::Knight)
-            .set_origin(super::ChessCoordinate { file: Some(super::ChessFile::B), rank: Some(super::ChessRank::R1) })
-            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::C), rank: Some(super::ChessRank::R3) })
+            .set_moving_piece(ChessPiece::Knight)
+            .set_origin(ChessCoordinate::new_opt(Some(ChessFile::B), Some(ChessRank::R1)))
+            .set_destination(ChessCoordinate::new_opt(Some(ChessFile::C), Some(ChessRank::R3)))
             .build();
         assert_eq!(mov.unwrap().to_string(), "Nb1c3");
     }
@@ -1638,9 +1425,9 @@ mod test_move_printing {
     #[test]
     pub fn test_capture_disambiguity() {
         let mov = ChessMove::new()
-            .set_moving_piece(super::ChessPiece::Knight)
-            .set_origin(super::ChessCoordinate { file: Some(super::ChessFile::B), rank: Some(super::ChessRank::R1) })
-            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::C), rank: Some(super::ChessRank::R3) })
+            .set_moving_piece(ChessPiece::Knight)
+            .set_origin(ChessCoordinate::new_opt(Some(ChessFile::B), Some(ChessRank::R1)))
+            .set_destination(ChessCoordinate::new_opt(Some(ChessFile::C), Some(ChessRank::R3)))
             .set_is_capture(true)
             .build();
         assert_eq!(mov.unwrap().to_string(), "Nb1xc3");
@@ -1649,8 +1436,8 @@ mod test_move_printing {
     #[test]
     pub fn test_promotion() {
         let mov = ChessMove::new()
-            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::E), rank: Some(super::ChessRank::R8) })
-            .set_promotion(super::ChessPiece::Queen)
+            .set_destination(ChessCoordinate::new_opt(Some(ChessFile::E), Some(ChessRank::R8)))
+            .set_promotion(ChessPiece::Queen)
             .build();
         assert_eq!(mov.unwrap().to_string(), "e8=Q");
     }
@@ -1658,15 +1445,15 @@ mod test_move_printing {
     #[test]
     pub fn test_checks() {
         let mov = ChessMove::new()
-            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::E), rank: Some(super::ChessRank::R8) })
-            .set_promotion(super::ChessPiece::Queen)
+            .set_destination(ChessCoordinate::new_opt(Some(ChessFile::E), Some(ChessRank::R8)))
+            .set_promotion(ChessPiece::Queen)
             .set_is_check(true)
             .build();
         assert_eq!(mov.unwrap().to_string(), "e8=Q+");
 
         let mov = ChessMove::new()
-            .set_moving_piece(super::ChessPiece::Queen)
-            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::E), rank: Some(super::ChessRank::R8) })
+            .set_moving_piece(ChessPiece::Queen)
+            .set_destination(ChessCoordinate::new_opt(Some(ChessFile::E), Some(ChessRank::R8)))
             .set_is_check(true)
             .build();
         assert_eq!(mov.unwrap().to_string(), "Qe8+");
@@ -1675,15 +1462,15 @@ mod test_move_printing {
     #[test]
     pub fn test_check_mate() {
         let mov = ChessMove::new()
-            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::E), rank: Some(super::ChessRank::R8) })
-            .set_promotion(super::ChessPiece::Queen)
+            .set_destination(ChessCoordinate::new_opt(Some(ChessFile::E), Some(ChessRank::R8)))
+            .set_promotion(ChessPiece::Queen)
             .set_is_check_mate(true)
             .build();
         assert_eq!(mov.unwrap().to_string(), "e8=Q#");
 
         let mov = ChessMove::new()
-            .set_moving_piece(super::ChessPiece::Queen)
-            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::E), rank: Some(super::ChessRank::R8) })
+            .set_moving_piece(ChessPiece::Queen)
+            .set_destination(ChessCoordinate::new_opt(Some(ChessFile::E), Some(ChessRank::R8)))
             .set_is_check_mate(true)
             .build();
         assert_eq!(mov.unwrap().to_string(), "Qe8#");

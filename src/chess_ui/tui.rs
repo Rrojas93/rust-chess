@@ -13,7 +13,7 @@ use crate::{
         Team
     },
     chess_cmd::{ChessTuiCmd, ChessCommands},
-    chess_pgn::{PgnMove, ChessMove},
+    chess_pgn::{ChessMove},
 };
 
 const TERMINAL_COLOR_RESET: &str        = "\u{001b}[0m";

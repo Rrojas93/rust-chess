@@ -1,11 +1,10 @@
 use std::fmt::{Display, Formatter};
+use crate::chess_common::*;
 
 pub type BoardSquares = [[Square; 8]; 8];
 pub struct Board {
     squares: BoardSquares,
 }
-
-
 
 impl Board {
     pub fn new() -> Board {
@@ -19,35 +18,35 @@ impl Board {
     pub fn new_game(&mut self) {
         // Add pawns
         for f in 0..8 {
-            self.squares[Rank::R2.as_usize()][f] = Square::new(Some(Piece::new(Team::Light, PieceType::Pawn)));
-            self.squares[Rank::R7.as_usize()][f] = Square::new(Some(Piece::new(Team::Dark, PieceType::Pawn)));
+            self.squares[ChessRank::R2.as_usize()][f] = Square::new(Some(Piece::new(Team::Light, ChessPiece::Pawn)));
+            self.squares[ChessRank::R7.as_usize()][f] = Square::new(Some(Piece::new(Team::Dark, ChessPiece::Pawn)));
         }
 
         // Add Rooks
-        self.squares[Rank::R1.as_usize()][File::FA.as_usize()] = Square::new(Some(Piece::new(Team::Light, PieceType::Rook)));
-        self.squares[Rank::R1.as_usize()][File::FH.as_usize()] = Square::new(Some(Piece::new(Team::Light, PieceType::Rook)));
-        self.squares[Rank::R8.as_usize()][File::FA.as_usize()] = Square::new(Some(Piece::new(Team::Dark, PieceType::Rook)));
-        self.squares[Rank::R8.as_usize()][File::FH.as_usize()] = Square::new(Some(Piece::new(Team::Dark, PieceType::Rook)));
+        self.squares[ChessRank::R1.as_usize()][ChessFile::A.as_usize()] = Square::new(Some(Piece::new(Team::Light, ChessPiece::Rook)));
+        self.squares[ChessRank::R1.as_usize()][ChessFile::H.as_usize()] = Square::new(Some(Piece::new(Team::Light, ChessPiece::Rook)));
+        self.squares[ChessRank::R8.as_usize()][ChessFile::A.as_usize()] = Square::new(Some(Piece::new(Team::Dark, ChessPiece::Rook)));
+        self.squares[ChessRank::R8.as_usize()][ChessFile::H.as_usize()] = Square::new(Some(Piece::new(Team::Dark, ChessPiece::Rook)));
 
         // Add Knights
-        self.squares[Rank::R1.as_usize()][File::FB.as_usize()] = Square::new(Some(Piece::new(Team::Light, PieceType::Knight)));
-        self.squares[Rank::R1.as_usize()][File::FG.as_usize()] = Square::new(Some(Piece::new(Team::Light, PieceType::Knight)));
-        self.squares[Rank::R8.as_usize()][File::FB.as_usize()] = Square::new(Some(Piece::new(Team::Dark, PieceType::Knight)));
-        self.squares[Rank::R8.as_usize()][File::FG.as_usize()] = Square::new(Some(Piece::new(Team::Dark, PieceType::Knight)));
+        self.squares[ChessRank::R1.as_usize()][ChessFile::B.as_usize()] = Square::new(Some(Piece::new(Team::Light, ChessPiece::Knight)));
+        self.squares[ChessRank::R1.as_usize()][ChessFile::G.as_usize()] = Square::new(Some(Piece::new(Team::Light, ChessPiece::Knight)));
+        self.squares[ChessRank::R8.as_usize()][ChessFile::B.as_usize()] = Square::new(Some(Piece::new(Team::Dark, ChessPiece::Knight)));
+        self.squares[ChessRank::R8.as_usize()][ChessFile::G.as_usize()] = Square::new(Some(Piece::new(Team::Dark, ChessPiece::Knight)));
 
         // Add Bishops
-        self.squares[Rank::R1.as_usize()][File::FC.as_usize()] = Square::new(Some(Piece::new(Team::Light, PieceType::Bishop)));
-        self.squares[Rank::R1.as_usize()][File::FF.as_usize()] = Square::new(Some(Piece::new(Team::Light, PieceType::Bishop)));
-        self.squares[Rank::R8.as_usize()][File::FC.as_usize()] = Square::new(Some(Piece::new(Team::Dark, PieceType::Bishop)));
-        self.squares[Rank::R8.as_usize()][File::FF.as_usize()] = Square::new(Some(Piece::new(Team::Dark, PieceType::Bishop)));
+        self.squares[ChessRank::R1.as_usize()][ChessFile::C.as_usize()] = Square::new(Some(Piece::new(Team::Light, ChessPiece::Bishop)));
+        self.squares[ChessRank::R1.as_usize()][ChessFile::F.as_usize()] = Square::new(Some(Piece::new(Team::Light, ChessPiece::Bishop)));
+        self.squares[ChessRank::R8.as_usize()][ChessFile::C.as_usize()] = Square::new(Some(Piece::new(Team::Dark, ChessPiece::Bishop)));
+        self.squares[ChessRank::R8.as_usize()][ChessFile::F.as_usize()] = Square::new(Some(Piece::new(Team::Dark, ChessPiece::Bishop)));
 
         // Add Queens
-        self.squares[Rank::R1.as_usize()][File::FD.as_usize()] = Square::new(Some(Piece::new(Team::Light, PieceType::Queen)));
-        self.squares[Rank::R8.as_usize()][File::FD.as_usize()] = Square::new(Some(Piece::new(Team::Dark, PieceType::Queen)));
+        self.squares[ChessRank::R1.as_usize()][ChessFile::D.as_usize()] = Square::new(Some(Piece::new(Team::Light, ChessPiece::Queen)));
+        self.squares[ChessRank::R8.as_usize()][ChessFile::D.as_usize()] = Square::new(Some(Piece::new(Team::Dark, ChessPiece::Queen)));
 
         // Add Kings
-        self.squares[Rank::R1.as_usize()][File::FE.as_usize()] = Square::new(Some(Piece::new(Team::Light, PieceType::King)));
-        self.squares[Rank::R8.as_usize()][File::FE.as_usize()] = Square::new(Some(Piece::new(Team::Dark, PieceType::King)));
+        self.squares[ChessRank::R1.as_usize()][ChessFile::E.as_usize()] = Square::new(Some(Piece::new(Team::Light, ChessPiece::King)));
+        self.squares[ChessRank::R8.as_usize()][ChessFile::E.as_usize()] = Square::new(Some(Piece::new(Team::Dark, ChessPiece::King)));
 
     }
 
@@ -87,7 +86,7 @@ impl Square {
 #[derive(Copy, Clone)]
 pub struct Piece {
     team: Team,
-    piece_type: PieceType,
+    piece_type: ChessPiece,
 }
 
 impl Display for Piece {
@@ -97,27 +96,27 @@ impl Display for Piece {
 }
 
 impl Piece {
-    pub fn new(team: Team, piece_type: PieceType) -> Piece {
+    pub fn new(team: Team, piece_type: ChessPiece) -> Piece {
         Piece {team, piece_type }
     }
 
     pub fn get_unicode_symbol(self) -> char {
         match self.team {
             Team::Dark => match self.piece_type {
-                PieceType::Pawn => '\u{265F}', // Some wierd error when copy + pasting char from the web...
-                PieceType::Knight => '♞',
-                PieceType::Bishop => '♝',
-                PieceType::Rook => '♜',
-                PieceType::Queen => '♛',
-                PieceType::King => '♚',
+                ChessPiece::Pawn => '\u{265F}', // Some wierd error when copy + pasting char from the web...
+                ChessPiece::Knight => '♞',
+                ChessPiece::Bishop => '♝',
+                ChessPiece::Rook => '♜',
+                ChessPiece::Queen => '♛',
+                ChessPiece::King => '♚',
             }
             Team::Light => match self.piece_type {
-                PieceType::Pawn => '♙',
-                PieceType::Knight => '♘',
-                PieceType::Bishop => '♗',
-                PieceType::Rook => '♖',
-                PieceType::Queen => '♕',
-                PieceType::King => '♔',
+                ChessPiece::Pawn => '♙',
+                ChessPiece::Knight => '♘',
+                ChessPiece::Bishop => '♗',
+                ChessPiece::Rook => '♖',
+                ChessPiece::Queen => '♕',
+                ChessPiece::King => '♔',
             }
         }
     }
@@ -131,48 +130,4 @@ impl Piece {
 pub enum Team {
     Light,
     Dark,
-}
-
-#[derive(Copy, Clone)]
-pub enum PieceType {
-    Pawn,
-    Knight,
-    Bishop,
-    Rook,
-    Queen,
-    King,
-}
-
-pub enum Rank {
-    R1 = 0,
-    R2,
-    R3,
-    R4,
-    R5,
-    R6,
-    R7,
-    R8
-}
-
-impl Rank {
-    pub fn as_usize(self) -> usize {
-        self as usize
-    }
-}
-
-pub enum File {
-    FA = 0,
-    FB,
-    FC,
-    FD,
-    FE,
-    FF,
-    FG,
-    FH,
-}
-
-impl File {
-    pub fn as_usize(self) -> usize {
-        self as usize
-    }
 }
