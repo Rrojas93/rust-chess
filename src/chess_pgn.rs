@@ -27,7 +27,7 @@ f3 Bc8 34. Kf2 Bf5 35. Ra7 g6 36. Ra6+ Kc5 37. Ke1 Nf4 38. g3 Nxh3 39. Kd2 Kb5
 use std::{fmt::Display, num::ParseIntError};
 use time::OffsetDateTime;
 
-struct PgnGame {
+pub struct PgnGame {
     // Required tag pairs
     event: PgnTagPair<String>,
     site: PgnTagPair<String>,
@@ -155,7 +155,7 @@ impl PgnGame {
     }
 }
 
-struct PgnTagPair<T: Display> {
+pub struct PgnTagPair<T: Display> {
     tag_name: String,
     tag_value: T
 }
@@ -184,7 +184,7 @@ impl<T: Display> PgnTagPair<T> {
     }
 }
 
-struct PgnDate {
+pub struct PgnDate {
     year: Option<i32>,
     month: Option<u8>,
     day: Option<u8>,
@@ -240,7 +240,7 @@ impl PgnDate {
     }
 }
 
-enum PgnResult {
+pub enum PgnResult {
     WhiteWin,
     BlackWin,
     Draw,
@@ -259,7 +259,7 @@ impl Display for PgnResult {
     }
 }
 
-enum PgnRound {
+pub enum PgnRound {
     Known(Vec<u32>),
     Unknown,
     Inappropriate,
@@ -296,7 +296,7 @@ impl PgnRound {
     }
 }
 
-struct MoveList {
+pub struct MoveList {
     moves: Vec<PgnMove>
 }
 
@@ -336,7 +336,7 @@ impl Display for MoveList {
     }
 }
 
-enum ChessTurn {
+pub enum ChessTurn {
     WhiteToMove,
     BlackToMove,
 }
@@ -401,13 +401,13 @@ impl MoveList {
     }
 }
 
-enum PgnMoveState {
+pub enum PgnMoveState {
     WhiteToMove,
     BlackToMove,
     MoveComplete,
 }
 
-struct PgnMove {
+pub struct PgnMove {
     white_move: Option<ChessMove>,
     black_move: Option<ChessMove>,
 }
@@ -471,7 +471,7 @@ impl PgnMove {
 }
 
 #[derive(Clone, Debug)]
-struct ChessMove {
+pub struct ChessMove {
     origin: Option<ChessCoordinate>,
     destination: Option<ChessCoordinate>,
     moving_piece: Option<ChessPiece>,
@@ -537,6 +537,7 @@ impl Display for ChessMove {
 
             // Show promotion
             if let Some(promote) = &self.promotion {
+                output += "=";
                 output += promote.to_string().as_str();
             }
         }
@@ -833,7 +834,7 @@ impl ChessMove {
     }
 }
 
-struct ChessMoveBuilder {
+pub struct ChessMoveBuilder {
     origin: Option<ChessCoordinate>,
     destination: Option<ChessCoordinate>,
     moving_piece: Option<ChessPiece>,
@@ -845,7 +846,7 @@ struct ChessMoveBuilder {
 }
 
 #[derive(Debug, PartialEq)]
-enum ChessMoveBuildError {
+pub enum ChessMoveBuildError {
     InvalidMove,
     ImpossibleMove,
     MissingDestination,
@@ -972,7 +973,7 @@ impl ChessMoveBuilder {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum ChessPiece {
+pub enum ChessPiece {
     Pawn,
     Knight,
     Bishop,
@@ -1010,7 +1011,7 @@ impl ChessPiece {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct ChessCoordinate {
+pub struct ChessCoordinate {
     file: Option<ChessFile>,
     rank: Option<ChessRank>,
 }
@@ -1084,7 +1085,7 @@ impl ChessCoordinate {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum ChessRank {
+pub enum ChessRank {
     R1,
     R2,
     R3,
@@ -1128,7 +1129,7 @@ impl ChessRank {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum ChessFile {
+pub enum ChessFile {
     A,
     B,
     C,
@@ -1172,7 +1173,7 @@ impl ChessFile {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum ChessCastleDirection {
+pub enum ChessCastleDirection {
     KingsideCastle,
     QueensideCastle,
 }
@@ -1552,7 +1553,7 @@ mod test_move_parsing {
 
 #[cfg(test)]
 mod test_move_printing {
-    use super::ChessMove;
+    use super::{ChessMove, ChessFile};
 
     #[test]
     pub fn test_castle_kingside() {
@@ -1573,8 +1574,118 @@ mod test_move_printing {
     }
 
     #[test]
-    pub fn test_simple_moves() {
-        let mov = ChessMove::new();
-        todo!();
+    pub fn test_pawn_move() {
+        let mov = ChessMove::new()
+            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::E), rank: Some(super::ChessRank::R4) })
+            .set_moving_piece(super::ChessPiece::Pawn)
+            .build();
+        assert_eq!(mov.unwrap().to_string(), "e4");
+    }
+
+    #[test]
+    pub fn test_pawn_capture() {
+        let mov = ChessMove::new()
+            .set_origin(super::ChessCoordinate { file: Some(ChessFile::E), rank: None })
+            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::D), rank: Some(super::ChessRank::R5) })
+            .set_is_capture(true)
+            .build();
+        assert_eq!(mov.unwrap().to_string(), "exd5");
+    }
+
+    #[test]
+    pub fn test_piece_move() {
+        let mov = ChessMove::new()
+            .set_moving_piece(super::ChessPiece::Knight)
+            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::C), rank: Some(super::ChessRank::R3) })
+            .build();
+        assert_eq!(mov.unwrap().to_string(), "Nc3");
+    }
+
+    #[test]
+    pub fn test_piece_capture() {
+        let mov = ChessMove::new()
+            .set_moving_piece(super::ChessPiece::Knight)
+            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::C), rank: Some(super::ChessRank::R3) })
+            .set_is_capture(true)
+            .build();
+        assert_eq!(mov.unwrap().to_string(), "Nxc3");
+    }
+
+    #[test]
+    pub fn test_move_disambiguity() {
+        let mov = ChessMove::new()
+            .set_moving_piece(super::ChessPiece::Knight)
+            .set_origin(super::ChessCoordinate { file: Some(super::ChessFile::B), rank: None })
+            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::C), rank: Some(super::ChessRank::R3) })
+            .build();
+        assert_eq!(mov.unwrap().to_string(), "Nbc3");
+
+        let mov = ChessMove::new()
+            .set_moving_piece(super::ChessPiece::Knight)
+            .set_origin(super::ChessCoordinate { file: None, rank: Some(super::ChessRank::R1) })
+            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::C), rank: Some(super::ChessRank::R3) })
+            .build();
+        assert_eq!(mov.unwrap().to_string(), "N1c3");
+
+        let mov = ChessMove::new()
+            .set_moving_piece(super::ChessPiece::Knight)
+            .set_origin(super::ChessCoordinate { file: Some(super::ChessFile::B), rank: Some(super::ChessRank::R1) })
+            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::C), rank: Some(super::ChessRank::R3) })
+            .build();
+        assert_eq!(mov.unwrap().to_string(), "Nb1c3");
+    }
+
+    #[test]
+    pub fn test_capture_disambiguity() {
+        let mov = ChessMove::new()
+            .set_moving_piece(super::ChessPiece::Knight)
+            .set_origin(super::ChessCoordinate { file: Some(super::ChessFile::B), rank: Some(super::ChessRank::R1) })
+            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::C), rank: Some(super::ChessRank::R3) })
+            .set_is_capture(true)
+            .build();
+        assert_eq!(mov.unwrap().to_string(), "Nb1xc3");
+    }
+
+    #[test]
+    pub fn test_promotion() {
+        let mov = ChessMove::new()
+            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::E), rank: Some(super::ChessRank::R8) })
+            .set_promotion(super::ChessPiece::Queen)
+            .build();
+        assert_eq!(mov.unwrap().to_string(), "e8=Q");
+    }
+
+    #[test]
+    pub fn test_checks() {
+        let mov = ChessMove::new()
+            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::E), rank: Some(super::ChessRank::R8) })
+            .set_promotion(super::ChessPiece::Queen)
+            .set_is_check(true)
+            .build();
+        assert_eq!(mov.unwrap().to_string(), "e8=Q+");
+
+        let mov = ChessMove::new()
+            .set_moving_piece(super::ChessPiece::Queen)
+            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::E), rank: Some(super::ChessRank::R8) })
+            .set_is_check(true)
+            .build();
+        assert_eq!(mov.unwrap().to_string(), "Qe8+");
+    }
+
+    #[test]
+    pub fn test_check_mate() {
+        let mov = ChessMove::new()
+            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::E), rank: Some(super::ChessRank::R8) })
+            .set_promotion(super::ChessPiece::Queen)
+            .set_is_check_mate(true)
+            .build();
+        assert_eq!(mov.unwrap().to_string(), "e8=Q#");
+
+        let mov = ChessMove::new()
+            .set_moving_piece(super::ChessPiece::Queen)
+            .set_destination(super::ChessCoordinate { file: Some(super::ChessFile::E), rank: Some(super::ChessRank::R8) })
+            .set_is_check_mate(true)
+            .build();
+        assert_eq!(mov.unwrap().to_string(), "Qe8#");
     }
 }
