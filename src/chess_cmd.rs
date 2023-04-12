@@ -14,7 +14,7 @@ pub struct ChessTuiCmd {
 #[derive(Subcommand, Debug)]
 pub enum ChessCommands {
     /// Make a chess move.
-    #[command(about = "A PGN valid move string.", long_about = "Examples:\n  e4\n  exd5\n  Nc3\n  e8=Q\n  O-O-O")]
+    #[command(long_about = "Examples:\n  e4\n  exd5\n  Nc3\n  e8=Q\n  O-O-O")]
     Move { pgn_move: String },
     /// Undo the last move or moves.
     Undo { undo_count: Option<u8> },
